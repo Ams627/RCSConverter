@@ -18,7 +18,6 @@ namespace RcsConverter
         public FlowDB()
         {
             SQLiteConnection.CreateFile("RCSFlow.sqlite");
-            System.Collections.Generic.LinkedListNode<int> a;
         }
     }
 }
