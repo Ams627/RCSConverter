@@ -47,30 +47,6 @@ namespace RcsConverter
             return files.Last();
         }
 
-        private static string GetRCSFlowFilename()
-        {
-            string rcsFlowFolder;
-            if (!folders.TryGetValue("RCSFlow", out rcsFlowFolder))
-            {
-                throw new Exception($"You must define the RCSFlow folder in the settings file {settingsFile}");
-            }
-            var xmlfiles = Directory.GetFiles(rcsFlowFolder, "RCS_R_F*.xml");
-            var zipfiles = Directory.GetFiles(rcsFlowFolder, "RCS_R_F*.zip");
-            if (xmlfiles.Count() == 0 && zipfiles.Count() == 0)
-            {
-                throw new Exception($"No RCS flow files (zip or xml) found in the folder {rcsFlowFolder}");
-            }
-            string result;
-            if (xmlfiles.Count() > 0)
-            {
-                result = xmlfiles.Last();
-            }
-            else
-            {
-                result = zipfiles.Last();
-            }
-            return result;
-        }
 
         private static void Main(string[] args)
         {   
@@ -88,50 +64,31 @@ namespace RcsConverter
                 // create the program folder if it does not exist. We should never need to do this but we will do
                 // it as an emergency procedure:
                 Directory.CreateDirectory(programFolder);
-                settingsFile = Path.Combine(programFolder, "settings.xml");
-                var doc = XDocument.Load(settingsFile);
-                folders = doc.Descendants("Folders").Elements("Folder").Select(folder => new
-                {
-                    Name = (string)folder.Attribute("Name"),
-                    Location = (string)folder.Attribute("Location")
-                }).ToDictionary(x=>x.Name, x=>x.Location);
-                
-                foreach (var folder in folders)
-                {
-                    if (folder.Value == null)
-                    {
-                        throw new Exception($"The folder specified for {folder.Key} must not be empty.");
-                    }
-                }
 
-                var rjislocfile = GetRJISLocFilename();
-                using (var fileStream = File.OpenRead(rjislocfile))
-                using (var streamReader = new StreamReader(fileStream))
-                {
-                    string line;
-                    while ((line = streamReader.ReadLine()) != null)
-                    {
-                        if (line.Length == 289 && line.Substring(1, 3) == "L70")
-                        {
-                            var nlc = line.Substring(36, 4);
-                            var faregroup = line.Substring(69, 4);
-                            if (nlc != faregroup)
-                            {
-                                AddGroupMember(faregroup, nlc);
-                            }
-                        }
-                    }
-                }
+                Settings settings = new Settings();
+                var rcsProcessor = new RCSFlowProcessor(settings);
+                rcsProcessor.Process();
 
-                var rcsFlowFile = GetRCSFlowFilename();
-                if (rcsFlowFile.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-                {
-                    var tempfolder = Path.GetTempPath();
-                    tempfolder += DateTime.Now.ToFileTime().ToString("X16");
-                    ZipFile.ExtractToDirectory(rcsFlowFile, tempfolder);
-                    var rcsFilenameComponent = Path.GetFileName(rcsFlowFile);
-                    rcsFlowFile = Path.Combine(tempfolder, rcsFlowFile);
-                }
+                //var rjislocfile = GetRJISLocFilename();
+                //using (var fileStream = File.OpenRead(rjislocfile))
+                //using (var streamReader = new StreamReader(fileStream))
+                //{
+                //    string line;
+                //    while ((line = streamReader.ReadLine()) != null)
+                //    {
+                //        if (line.Length == 289 && line.Substring(1, 3) == "L70")
+                //        {
+                //            var nlc = line.Substring(36, 4);
+                //            var faregroup = line.Substring(69, 4);
+                //            if (nlc != faregroup)
+                //            {
+                //                AddGroupMember(faregroup, nlc);
+                //            }
+                //        }
+                //    }
+                //}
+
+
 
             }
             catch (Exception ex)

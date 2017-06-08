@@ -15,7 +15,8 @@ namespace RcsConverter
         /// <summary>
         /// Path for settings.xml - normally %appdata%/Parkeon/RcsConverter
         /// </summary>
-        private string settingsFile;
+        public string SettingsFile { get; private set; }
+        public string ProductName { get; private set; }
 
         /// <summary>
         /// a dictionary of folder types - keys are any of the following: RJIS, RCSFLOW, TEMP, IDMS - each
@@ -33,6 +34,10 @@ namespace RcsConverter
             var versionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetEntryAssembly().Location);
             var companyName = versionInfo.CompanyName;
             var productName = versionInfo.ProductName;
+
+            // store for later access by other program areas:
+            ProductName = productName;
+
             var appdataFolder = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             var programFolder = Path.Combine(appdataFolder, companyName, productName);
             if (File.Exists(programFolder))
@@ -42,8 +47,8 @@ namespace RcsConverter
             // create the program folder if it does not exist. We should never need to do this but we will do
             // it as an emergency procedure:
             Directory.CreateDirectory(programFolder);
-            settingsFile = Path.Combine(programFolder, "settings.xml");
-            var doc = XDocument.Load(settingsFile);
+            SettingsFile = Path.Combine(programFolder, "settings.xml");
+            var doc = XDocument.Load(SettingsFile);
             folders = doc.Descendants("Folders").Elements("Folder").Select(folder => new
             {
                 Name = (string)folder.Attribute("Name"),
@@ -63,19 +68,17 @@ namespace RcsConverter
 
             foreach (var ticket in TicketTypes)
             {
-                if (string.IsNullOrWhiteSpace(ticket) || ticket.Length != 3 || ticket.Any(c=>!char.IsUpper(c)))
+                if (string.IsNullOrWhiteSpace(ticket) || ticket.Length != 3 || ticket.Any(c=>!char.IsUpper(c) && !char.IsDigit(c)))
                 {
                     throw new Exception($"Invalid ticket type {ticket} specified.");
                 }
             }
         }
 
-        string GetFolder(string name)
+        public (bool, string) GetFolder(string name)
         {
-            folders.TryGetValue(name, out var result);
-            return result;
+            return (folders.TryGetValue(name, out var result), result);
         }
-
 
     }
 }
