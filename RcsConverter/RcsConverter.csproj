@@ -65,6 +65,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="FilenameProcessor.cs" />
     <Compile Include="FlowDB.cs" />
     <Compile Include="LRUCache.cs" />
     <Compile Include="Program.cs" />

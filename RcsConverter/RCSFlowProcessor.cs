@@ -26,35 +26,6 @@ namespace RcsConverter
         /// <returns></returns>
         private string GetRCSFlowFilename()
         {
-            var (ok, rcsFlowFolder) = settings.GetFolder("RCSFlow");
-            if (!ok)
-            {
-                throw new Exception($"You must define the RCSFlow folder in the settings file {settings.SettingsFile}");
-            }
-            var rcsfiles = Directory.GetFiles(rcsFlowFolder, "RCS_R_F*").ToList();
-            // get a more precise match as Directory.GetFiles does not allow use of regex - also remove 
-            // files that are not .zip or .xml:
-            rcsfiles.RemoveAll(s => !Regex.Match(s, @"RCS_R_F_\d{6}_\d{5}.xml$|RCS_R_F_\d{6}_\d{5}.zip$").Success);
-
-            // comparison Func just for RCS files:
-            Func<string, string, int> RCSComparer = (s1, s2) =>
-            {
-                var name1 = Path.GetFileNameWithoutExtension(s1);
-                var serial1 = name1.Substring(name1.Length - 5);
-                var n1 = Convert.ToInt32(serial1);
-                var name2 = Path.GetFileNameWithoutExtension(s1);
-                var serial2 = name2.Substring(name1.Length - 5);
-                var n2 = Convert.ToInt32(serial2);
-                return n1.CompareTo(n2);
-            };
-
-            rcsfiles.Sort(new Comparison<string>(RCSComparer));
-
-            if (rcsfiles.Count() == 0)
-            {
-                throw new Exception($"No RCS flow files (zip or xml) found in the folder {rcsFlowFolder}");
-            }
-            return rcsfiles.Last();
         }
 
         public void ProcessXMLFile(string filename)
