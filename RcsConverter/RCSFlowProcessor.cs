@@ -14,8 +14,11 @@ namespace RcsConverter
     {
         private readonly Settings settings;
         private readonly string filename;
+
         public List<RCSFlow> RcsFlowList { get; private set;}
         public Lookup<string, RCSFlow> RcsFlowLookup { get; private set; }
+
+        public Lookup<string, RCSFlow> DatabaseLookup { get; private set; }
 
         public RCSFlowProcessor(Settings settings, string filename)
         {
@@ -23,7 +26,7 @@ namespace RcsConverter
             this.filename = filename;
         }
 
-        public void ProcessXMLFile(string filename)
+        private void ProcessXMLFile(string filename)
         {
             RcsFlowList = new List<RCSFlow>();
             var rcsflow = new RCSFlow();
@@ -208,9 +211,24 @@ namespace RcsConverter
             {
                 var tempfolder = Path.GetTempPath();
                 var progname = settings.ProductName;
-                tempfolder = Path.Combine(tempfolder, progname, DateTime.Now.ToFileTime().ToString("X16"));
-                ZipFile.ExtractToDirectory(filename, tempfolder);
-                var rcsFilenameComponent = Path.GetFileName(filename);
+                tempfolder = Path.Combine(tempfolder, progname, "RCSunzip");
+                if (!Directory.Exists(tempfolder))
+                {
+                    Directory.CreateDirectory(tempfolder);
+                }
+                using (var archive = ZipFile.OpenRead(filename))
+                {
+                    if (archive.Entries.Count != 1)
+                    {
+                        throw new Exception("There must be a single entry in the zip file {filename}.");
+                    }
+                    var zipEntry = archive.Entries.First();
+                    if (!Path.GetFileNameWithoutExtension(zipEntry.FullName).Equals(Path.GetFileNameWithoutExtension(filename), StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new Exception($"The file in the zip archive {filename} does not match the name of the archive");
+                    }
+                    zipEntry.ExtractToFile(Path.Combine(tempfolder, zipEntry.FullName), true);
+                }
 
                 // set new path if we have unzipped a file:
                 fileToProcess = Path.Combine(tempfolder, Path.GetFileNameWithoutExtension(filename) + ".xml");
@@ -219,6 +237,7 @@ namespace RcsConverter
             ProcessXMLFile(fileToProcess);
             ReIndex();
         }
+
 
         public void ReIndex()
         {

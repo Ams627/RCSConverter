@@ -14,21 +14,6 @@ namespace RcsConverter
 {
     internal class Program
     {
-        /// <summary>
-        /// the key is a group NLC and the value is a list of members of the group
-        /// </summary>
-        static Dictionary<string, HashSet<string>> groupDefinitions = new Dictionary<string, HashSet<string>>();
-
-        private static void AddGroupMember(string groupnlc, string member)
-        {
-            if (!groupDefinitions.TryGetValue(groupnlc, out var list))
-            {
-                list = new HashSet<string>();
-                groupDefinitions.Add(groupnlc, list);
-            }
-            list.Add(member);
-        }
-
         //private static string GetRJISLocFilename()
         //{
         //    string rjisFolder;
@@ -44,6 +29,7 @@ namespace RcsConverter
             
         //    return files.Last();
         //}
+
 
         private static void Main(string[] args)
         {   
@@ -72,6 +58,8 @@ namespace RcsConverter
                 }
                 else
                 {
+                    var rjisProcessor = new RJISProcessor(settings, filenameProcessor.RJISZipname);
+
                     var rcsRefreshProcessor = new RCSFlowProcessor(settings, flowFilename);
                     rcsRefreshProcessor.Process();
 
@@ -131,26 +119,11 @@ namespace RcsConverter
                         // sort and reindex the refresh database:
                         rcsRefreshProcessor.RcsFlowList.Sort((x1, x2) => x1.LookupKey.CompareTo(x2.LookupKey));
                         rcsRefreshProcessor.ReIndex();
-                    }
+                    } // foreach update
 
-                    //var rjislocfile = GetRJISLocFilename();
-                    //using (var fileStream = File.OpenRead(rjislocfile))
-                    //using (var streamReader = new StreamReader(fileStream))
-                    //{
-                    //    string line;
-                    //    while ((line = streamReader.ReadLine()) != null)
-                    //    {
-                    //        if (line.Length == 289 && line.Substring(1, 3) == "L70")
-                    //        {
-                    //            var nlc = line.Substring(36, 4);
-                    //            var faregroup = line.Substring(69, 4);
-                    //            if (nlc != faregroup)
-                    //            {
-                    //                AddGroupMember(faregroup, nlc);
-                    //            }
-                    //        }
-                    //    }
-                    //}
+                    var dbCreator = new DbCreator(rcsRefreshProcessor.RcsFlowList, rjisProcessor);
+                    dbCreator.CreateIndividualDBS();
+
                 }
                 Thread.Sleep(100000000);
             }
