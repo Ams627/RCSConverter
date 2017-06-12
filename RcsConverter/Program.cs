@@ -65,9 +65,30 @@ namespace RcsConverter
                 // it as an emergency procedure:
                 Directory.CreateDirectory(programFolder);
 
-                Settings settings = new Settings();
-                var rcsProcessor = new RCSFlowProcessor(settings);
-                rcsProcessor.Process();
+                var settings = new Settings();
+                var filenameProcessor = new FilenameProcessor(settings);
+
+                var flowFilename = filenameProcessor.GetFlowRefreshFilename();
+                if (string.IsNullOrEmpty(flowFilename))
+                {
+                    Console.WriteLine($"No flow filename in folder {settings.GetFolder("RCSFlow")}: nothing to process");
+                }
+                else
+                {
+                    var rcsProcessor = new RCSFlowProcessor(settings, flowFilename);
+                    rcsProcessor.Process();
+
+                    var updateProcessorList = new List<RCSFlowProcessor>();
+                    foreach (var updateFilename in filenameProcessor.FlowUpdateFilenames)
+                    {
+                        var processor = new RCSFlowProcessor(settings, updateFilename);
+                        processor.Process();
+                        updateProcessorList.Add(processor);
+                    }
+
+                    
+                }
+
 
                 //var rjislocfile = GetRJISLocFilename();
                 //using (var fileStream = File.OpenRead(rjislocfile))

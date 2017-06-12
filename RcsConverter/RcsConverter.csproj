@@ -73,6 +73,7 @@
     <Compile Include="RCSFF.cs" />
     <Compile Include="RCSFlow.cs" />
     <Compile Include="RCSFlowProcessor.cs" />
+    <Compile Include="RCSParseUtils.cs" />
     <Compile Include="RCSTicket.cs" />
     <Compile Include="Settings.cs" />
   </ItemGroup>

@@ -13,24 +13,19 @@ namespace RcsConverter
     class RCSFlowProcessor
     {
         private readonly Settings settings;
-        private List<RCSFlow> rcsFlowList;
+        private readonly string filename;
+        public List<RCSFlow> RcsFlowList { get; private set;}
+        public Lookup<string, RCSFlow> RcsFlowLookup { get; private set; }
 
-        public RCSFlowProcessor(Settings settings)
+        public RCSFlowProcessor(Settings settings, string filename)
         {
             this.settings = settings;
-        }
-
-        /// <summary>
-        /// Get the latest RCS filename by serial number only - we don't care if it is zip or 
-        /// </summary>
-        /// <returns></returns>
-        private string GetRCSFlowFilename()
-        {
+            this.filename = filename;
         }
 
         public void ProcessXMLFile(string filename)
         {
-            rcsFlowList = new List<RCSFlow>();
+            RcsFlowList = new List<RCSFlow>();
             var rcsflow = new RCSFlow();
             var rcsticket = new RCSTicket();
             var rcsff = new RCSFF();
@@ -80,7 +75,6 @@ namespace RcsConverter
                         else if (reader.Name == "FF")
                         {
                             bool isItso = false;
-                            DateTime tempDateTime;
                             rcsff.QuoteDate = null;
                             rcsff.SeasonIndicator = null;
                             rcsff.Key = null;
@@ -89,27 +83,15 @@ namespace RcsConverter
                             {
                                 if (reader.Name == "u")
                                 {
-                                    DateTime.TryParseExact("20" + reader.Value,
-                                        "yyyyMMdd",
-                                        System.Globalization.CultureInfo.InvariantCulture,
-                                        System.Globalization.DateTimeStyles.None, out tempDateTime);
-                                    rcsff.EndDate = tempDateTime;
+                                    rcsff.EndDate = RCSParseUtils.CheckDate(reader.Value); 
                                 }
                                 else if (reader.Name == "f")
                                 {
-                                    DateTime.TryParseExact("20" + reader.Value,
-                                        "yyyyMMdd",
-                                        System.Globalization.CultureInfo.InvariantCulture,
-                                        System.Globalization.DateTimeStyles.None, out tempDateTime);
-                                    rcsff.StartDate = tempDateTime;
+                                    rcsff.StartDate = RCSParseUtils.CheckDate(reader.Value);
                                 }
                                 else if (reader.Name == "p")
                                 {
-                                    DateTime.TryParseExact("20" + reader.Value,
-                                        "yyyyMMdd",
-                                        System.Globalization.CultureInfo.InvariantCulture,
-                                        System.Globalization.DateTimeStyles.None, out tempDateTime);
-                                    rcsff.QuoteDate = tempDateTime;
+                                    rcsff.QuoteDate = RCSParseUtils.CheckDate(reader.Value);
                                 }
                                 else if (reader.Name == "k")
                                 {
@@ -153,19 +135,20 @@ namespace RcsConverter
                         {
                             if (rcsflow.TicketList.Count > 0)
                             {
-                                rcsFlowList.Add(rcsflow);
+                                rcsflow.TicketList.Sort((t1, t2)=>t1.TicketCode.CompareTo(t2.TicketCode));
+                                RcsFlowList.Add(rcsflow);
                                 rcsflow = new RCSFlow();
-                                if (rcsFlowList.Count() % 1000 == 999)
+                                if (RcsFlowList.Count() % 1000 == 999)
                                 {
-                                    Console.WriteLine($"Record number {rcsFlowList.Count() + 1:n0}");
+                                    Console.WriteLine($"Filename {filename} - record number {RcsFlowList.Count() + 1:n0}");
                                 }
                             }
-                                                    }
+                        }
                     }
                 }
             }
             var totaltickets = 0;
-            foreach (var f in rcsFlowList)
+            foreach (var f in RcsFlowList)
             {
                 foreach (var t in f.TicketList)
                 {
@@ -173,28 +156,28 @@ namespace RcsConverter
                 }
             }
             Console.WriteLine($"total tickets are {totaltickets}");
-            var count = rcsFlowList.Where(x => (x.Origin == "9419" || x.Destination == "9419")).Count();
+            var count = RcsFlowList.Where(x => (x.Origin == "9419" || x.Destination == "9419")).Count();
 
         }
 
         public void Process()
         {
-            var rcsFlowFile = GetRCSFlowFilename();
-
+            var fileToProcess = filename;
             // extract the file from the zip if a zip is found in the RCSFlow folder:
-            if (rcsFlowFile.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            if (filename.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             {
                 var tempfolder = Path.GetTempPath();
                 var progname = settings.ProductName;
                 tempfolder = Path.Combine(tempfolder, progname, DateTime.Now.ToFileTime().ToString("X16"));
-                ZipFile.ExtractToDirectory(rcsFlowFile, tempfolder);
-                var rcsFilenameComponent = Path.GetFileName(rcsFlowFile);
+                ZipFile.ExtractToDirectory(filename, tempfolder);
+                var rcsFilenameComponent = Path.GetFileName(filename);
 
-                // set new path:
-                rcsFlowFile = Path.Combine(tempfolder, Path.GetFileNameWithoutExtension(rcsFlowFile) + ".xml");
+                // set new path if we have unzipped a file:
+                fileToProcess = Path.Combine(tempfolder, Path.GetFileNameWithoutExtension(filename) + ".xml");
             }
 
-            ProcessXMLFile(rcsFlowFile);
+            ProcessXMLFile(fileToProcess);
+            RcsFlowLookup = (Lookup<string, RCSFlow>)RcsFlowList.ToLookup(x => x.Origin + x.Destination + x.Route, x=>x);
         }
     }
 }
