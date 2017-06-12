@@ -29,12 +29,20 @@ namespace RcsConverter
             var rcsflow = new RCSFlow();
             var rcsticket = new RCSTicket();
             var rcsff = new RCSFF();
+            var numberOfDeletions = 0;
+            var numberOfInsertions = 0;
+            var numberOfAmends = 0;
+            var lineNumber = 0;
 
             using (var reader = XmlReader.Create(filename))
             {
                 while (reader.Read())
                 {
-                    if (reader.NodeType == XmlNodeType.Element)
+                    if (reader.NodeType == XmlNodeType.Whitespace && reader.Value == "\n")
+                    {
+                        lineNumber++;
+                    }
+                    else if (reader.NodeType == XmlNodeType.Element)
                     {
                         if (reader.Name == "F" )
                         {
@@ -52,10 +60,36 @@ namespace RcsConverter
                                 {
                                     rcsflow.Destination = reader.Value;
                                 }
-                                else if (reader.Name != "i")
+                                else if (reader.Name == "i")
+                                {
+                                    rcsflow.SetRecordType(reader.Value);
+                                    if (rcsflow.recordType == RCSFRecordType.Amend)
+                                    {
+                                        numberOfAmends++;
+                                    }
+                                    else if (rcsflow.recordType == RCSFRecordType.Delete)
+                                    {
+                                        numberOfDeletions++;
+                                    }
+                                    else if (rcsflow.recordType == RCSFRecordType.Insert)
+                                    {
+                                        numberOfInsertions++;
+                                    }
+                                }
+                                else 
                                 {
                                     throw new Exception("Invalid attribute in F element");
                                 }
+                            }
+                            reader.MoveToElement();
+                            if (reader.IsEmptyElement)
+                            {
+                                if (rcsflow.recordType != RCSFRecordType.Delete)
+                                {
+                                    throw new Exception("An empty F-Record is only permitted for deletions (i=\"D\").");
+                                }
+                                RcsFlowList.Add(rcsflow);
+                                rcsflow = new RCSFlow();
                             }
                         }
                         else if (reader.Name == "T")
@@ -127,12 +161,17 @@ namespace RcsConverter
                         {
                             if (rcsticket.FFList.Count > 0)
                             {
+                                rcsticket.FFList.Sort((ff1,ff2) => ff1.SortKey.CompareTo(ff2.SortKey));
                                 rcsflow.TicketList.Add(rcsticket);
                                 rcsticket = new RCSTicket();
                             }
                         }
                         else if (reader.Name == "F")
                         {
+                            if (rcsflow.recordType == RCSFRecordType.Delete)
+                            {
+                                throw new Exception("F records must be empty when specifying a deleltion");
+                            }
                             if (rcsflow.TicketList.Count > 0)
                             {
                                 rcsflow.TicketList.Sort((t1, t2)=>t1.TicketCode.CompareTo(t2.TicketCode));
@@ -140,7 +179,7 @@ namespace RcsConverter
                                 rcsflow = new RCSFlow();
                                 if (RcsFlowList.Count() % 1000 == 999)
                                 {
-                                    Console.WriteLine($"Filename {filename} - record number {RcsFlowList.Count() + 1:n0}");
+//                                    Console.WriteLine($"Filename {filename} - record number {RcsFlowList.Count() + 1:n0}");
                                 }
                             }
                         }
@@ -156,8 +195,9 @@ namespace RcsConverter
                 }
             }
             Console.WriteLine($"total tickets are {totaltickets}");
-            var count = RcsFlowList.Where(x => (x.Origin == "9419" || x.Destination == "9419")).Count();
-
+            Console.WriteLine($"total number amends for {filename} is {numberOfAmends}");
+            Console.WriteLine($"total number deletions for {filename} is {numberOfDeletions}");
+            Console.WriteLine($"total number inserts for {filename} is {numberOfInsertions}");
         }
 
         public void Process()
@@ -177,7 +217,12 @@ namespace RcsConverter
             }
 
             ProcessXMLFile(fileToProcess);
-            RcsFlowLookup = (Lookup<string, RCSFlow>)RcsFlowList.ToLookup(x => x.Origin + x.Destination + x.Route, x=>x);
+            ReIndex();
+        }
+
+        public void ReIndex()
+        {
+            RcsFlowLookup = (Lookup<string, RCSFlow>)RcsFlowList.ToLookup(x => x.LookupKey, x => x);
         }
     }
 }

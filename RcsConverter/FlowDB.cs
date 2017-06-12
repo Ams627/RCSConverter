@@ -9,7 +9,7 @@ namespace RcsConverter
 {
     class FlowDB
     {
-        SQLiteConnection singleFlowDB;
+        //SQLiteConnection singleFlowDB;
 
         /// <summary>
         /// Cache of individual NLC dbs to write:
