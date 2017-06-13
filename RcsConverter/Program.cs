@@ -32,6 +32,12 @@ namespace RcsConverter
                 Directory.CreateDirectory(programFolder);
 
                 var settings = new Settings();
+
+                if (args.Count() > 0)
+                {
+                    settings.CurrentTocName = args[0];
+                }
+
                 settings.Warnings.ForEach(x => Console.WriteLine($"{x}"));
                 var filenameProcessor = new FilenameProcessor(settings);
 

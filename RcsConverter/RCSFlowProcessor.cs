@@ -164,7 +164,7 @@ namespace RcsConverter
                         {
                             if (rcsticket.FFList.Count > 0)
                             {
-                                rcsticket.FFList.Sort((ff1,ff2) => ff1.SortKey.CompareTo(ff2.SortKey));
+                                rcsticket.FFList.Sort((ff1, ff2) => ff1.SortKey.CompareTo(ff2.SortKey));
                                 rcsflow.TicketList.Add(rcsticket);
                                 rcsticket = new RCSTicket();
                             }
@@ -173,7 +173,7 @@ namespace RcsConverter
                         {
                             if (rcsflow.recordType == RCSFRecordType.Delete)
                             {
-                                throw new Exception("F records must be empty when specifying a deleltion");
+                                throw new Exception("F records must be empty when specifying a deletion");
                             }
                             if (rcsflow.TicketList.Count > 0)
                             {

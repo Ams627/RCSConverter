@@ -27,9 +27,10 @@ namespace RcsConverter
         /// </summary>
         private Dictionary<string, string> folders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        public string MyProperty { get; set; }
+        public string CurrentTocName { get; set; }
         public HashSet<string> TicketTypes { get; set; }
         public Dictionary<string, HashSet<string>> PerTocNlcList { get; private set; }
+        public Dictionary<string, HashSet<string>> PerTocTicketTypeList { get; private set; }
         public List<string> Warnings { get; private set; } = new List<string>();
 
 
@@ -111,6 +112,11 @@ namespace RcsConverter
 
             var validStationSets = doc.Element("Settings").Elements("StationSets").Elements("StationSet").Where(x => x.Attribute("Name") != null);
             PerTocNlcList = validStationSets.ToDictionary(x => x.Attribute("Name").Value, x => x.Descendants("Station").Where(e => e.Attribute("Nlc") != null).Select(e => e.Attribute("Nlc").Value).ToHashSet(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+
+            PerTocTicketTypeList = validStationSets.ToDictionary(
+                x => x.Attribute("Name").Value,
+                x => x.Descendants("TicketType").Where(e => e.Attribute("Code") != null).Select(e => e.Attribute("Code").Value).ToHashSet(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+
         }
 
         public (bool, string) GetFolder(string name)

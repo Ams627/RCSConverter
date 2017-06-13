@@ -95,6 +95,8 @@ namespace RcsConverter
                 Directory.CreateDirectory(dbFolder);
             }
 
+            bool isSingleToc = settings.PerTocTicketTypeList.TryGetValue(settings.CurrentTocName, out var validTicketTypes);
+
             var batchname = Path.Combine(dbFolder, "sqldumper.btm");
             using (var outfile = new StreamWriter(batchname))
             {
@@ -127,9 +129,9 @@ namespace RcsConverter
                                 var sqlParamDestination = new SQLiteParameter();
 
                                 routeCmd.Parameters.Add(sqlParamPID);
-                                routeCmd.Parameters.Add(sqlParamRoute);
                                 routeCmd.Parameters.Add(sqlParamOrigin);
                                 routeCmd.Parameters.Add(sqlParamDestination);
+                                routeCmd.Parameters.Add(sqlParamRoute);
 
                                 var sqlParamPID2 = new SQLiteParameter();
                                 var sqlParamFTOT = new SQLiteParameter();
@@ -154,30 +156,37 @@ namespace RcsConverter
                                     var pid = 0;
                                     foreach (var flow in rcsFlowlist)
                                     {
-                                        sqlParamPID.Value = pid;
-                                        sqlParamRoute.Value = flow.Route;
-                                        sqlParamOrigin.Value = flow.Origin;
-                                        sqlParamDestination.Value = flow.Destination;
-                                        routeCmd.ExecuteNonQuery();
+                                        var anyValidTicketTypes = !isSingleToc || flow.TicketList.Select(x => validTicketTypes.Contains(x.TicketCode)).Any(b=>b);
 
-                                        sqlParamPID2.Value = pid;
-
-                                        foreach (var ticket in flow.TicketList)
+                                        if (anyValidTicketTypes)
                                         {
-                                            sqlParamFTOT.Value = ticket.TicketCode;
-                                            foreach (var ff in ticket.FFList)
-                                            {
-                                                sqlParamDFrom.Value = ff.StartDate;
-                                                sqlParamDUntil.Value = ff.EndDate;
-                                                sqlParamSeasonDetails.Value = ff.SeasonIndicator;
-                                                sqlParamPDate.Value = ff.QuoteDate;
-                                                sqlParamPRef.Value = ff.Key;
-                                                sqlParamFulfilMethod.Value = "00001";
-                                                ticketCmd.ExecuteNonQuery();
-                                            }
-                                        }
+                                            sqlParamPID.Value = pid;
+                                            sqlParamRoute.Value = flow.Route;
+                                            sqlParamOrigin.Value = flow.Origin;
+                                            sqlParamDestination.Value = flow.Destination;
+                                            routeCmd.ExecuteNonQuery();
 
-                                        pid++;
+                                            sqlParamPID2.Value = pid;
+
+                                            foreach (var ticket in flow.TicketList)
+                                            {
+                                                if (validTicketTypes.Contains(ticket.TicketCode))
+                                                {
+                                                    sqlParamFTOT.Value = ticket.TicketCode;
+                                                    foreach (var ff in ticket.FFList)
+                                                    {
+                                                        sqlParamDFrom.Value = ff.StartDate;
+                                                        sqlParamDUntil.Value = ff.EndDate;
+                                                        sqlParamSeasonDetails.Value = ff.SeasonIndicator;
+                                                        sqlParamPDate.Value = ff.QuoteDate;
+                                                        sqlParamPRef.Value = ff.Key;
+                                                        sqlParamFulfilMethod.Value = "00001";
+                                                        ticketCmd.ExecuteNonQuery();
+                                                    }
+                                                }
+                                            }
+                                            pid++;
+                                        }
                                     }
                                     transaction.Commit();
                                 }
