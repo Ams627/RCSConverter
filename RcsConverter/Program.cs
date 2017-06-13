@@ -120,6 +120,7 @@ namespace RcsConverter
                     }
 
                 }
+                Console.WriteLine("Sleeping");
                 Thread.Sleep(100000000);
             }
             catch (Exception ex)

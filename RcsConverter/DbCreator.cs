@@ -42,6 +42,10 @@ namespace RcsConverter
         {
             foreach (var flow in rcsFlowList)
             {
+                if (flow.Origin == "8469")
+                {
+                    Console.WriteLine("");
+                }
                 var origingGroupMembers = rjisprocessor.GetGroupMembers(flow.Origin);
                 var destinationGroupMembers = rjisprocessor.GetGroupMembers(flow.Destination);
                 if (origingGroupMembers != null)
@@ -77,19 +81,93 @@ namespace RcsConverter
             {
                 throw new Exception($"Cannot get database folder from settings file {settings.SettingsFile}");
             }
+            if (!Directory.Exists(dbFolder))
+            {
+                Directory.CreateDirectory(dbFolder);
+            }
 
             foreach (var station in nlcSet)
             {
-                if (dbStationLookup.ContainsKey(station))
+                var databaseName = Path.Combine(dbFolder, $"RCSFlow-{station}.sqlite");
+                SQLiteConnection.CreateFile(databaseName);
+                using (var sqliteConnection = new SQLiteConnection("Data Source=" + databaseName + ";"))
                 {
-                    var databaseName = Path.Combine(dbFolder, $"RCSFlow-{station}.sqlite");
-                    SQLiteConnection.CreateFile(databaseName);
-                    using (var sqliteConnection = new SQLiteConnection("Data Source=" + databaseName + ";"))
+                    sqliteConnection.Open();
+                    SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_DB(SeqNo INTEGER PRIMARY KEY, Date date)", sqliteConnection);
+                    SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_ROUTE_DB(pID INTEGER PRIMARY KEY, Orig VARCHAR, Dest VARCHAR, Route VARCHAR)", sqliteConnection);
+                    SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_TICKET_DB(pID INTEGER REFERENCES RCS_FLOW_ROUTE_DB(pID) ON DELETE CASCADE, FTOT VARCHAR, DFrom date, DUntil date, FulfilMethod VARCHAR, pDate date, pRef VARCHAR, SeasonDetails VARCHAR)", sqliteConnection);
+                   
+                    SimpleSQLOperation.Run($"INSERT INTO RCS_FLOW_DB(SeqNo, Date) VALUES(0, \"{DateTime.Today.ToString("yyyy-MM-dd HH:mm:ss.F")}\")", sqliteConnection);
+
+                    if (dbStationLookup.TryGetValue(station, out var rcsFlowlist))
                     {
-                        sqliteConnection.Open();
-                        SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_DB(SeqNo INTEGER PRIMARY KEY, Date date)", sqliteConnection);
-                        SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_ROUTE_DB(pID INTEGER PRIMARY KEY, Orig VARCHAR, Dest VARCHAR, Route VARCHAR)", sqliteConnection);
-                        SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_TICKET_DB(pID INTEGER REFERENCES RCS_FLOW_ROUTE_DB(pID) ON DELETE CASCADE, FTOT VARCHAR, DFrom date, DUntil date, FulfilMethod VARCHAR, pDate date, pRef VARCHAR, SeasonDetails VARCHAR)", sqliteConnection);
+                        var insertRoute = "INSERT INTO RCS_FLOW_ROUTE_DB(pID, orig, dest, route) VALUES(?, ?, ?, ?)";
+                        var insertTicket = "INSERT INTO RCS_FLOW_TICKET_DB(pID, FTOT, DFrom, Duntil, FulfilMethod, pDate, pRef, SeasonDetails) VALUES(?, ?, ?, ?, ?, ?, ?, ?)";
+
+                        using (var routeCmd = new SQLiteCommand(insertRoute, sqliteConnection))
+                        using (var ticketCmd = new SQLiteCommand(insertTicket, sqliteConnection))
+                        {
+                            var sqlParamPID = new SQLiteParameter();
+                            var sqlParamOrigin = new SQLiteParameter();
+                            var sqlParamRoute = new SQLiteParameter();
+                            var sqlParamDestination = new SQLiteParameter();
+
+                            routeCmd.Parameters.Add(sqlParamPID);
+                            routeCmd.Parameters.Add(sqlParamRoute);
+                            routeCmd.Parameters.Add(sqlParamOrigin);
+                            routeCmd.Parameters.Add(sqlParamDestination);
+
+                            var sqlParamPID2 = new SQLiteParameter();
+                            var sqlParamFTOT = new SQLiteParameter();
+                            var sqlParamDFrom = new SQLiteParameter();
+                            var sqlParamDUntil = new SQLiteParameter();
+                            var sqlParamFulfilMethod = new SQLiteParameter();
+                            var sqlParamPDate = new SQLiteParameter();
+                            var sqlParamPRef = new SQLiteParameter();
+                            var sqlParamSeasonDetails = new SQLiteParameter();
+
+                            ticketCmd.Parameters.Add(sqlParamPID2);
+                            ticketCmd.Parameters.Add(sqlParamFTOT);
+                            ticketCmd.Parameters.Add(sqlParamDFrom);
+                            ticketCmd.Parameters.Add(sqlParamDUntil);
+                            ticketCmd.Parameters.Add(sqlParamFulfilMethod);
+                            ticketCmd.Parameters.Add(sqlParamPDate);
+                            ticketCmd.Parameters.Add(sqlParamPRef);
+                            ticketCmd.Parameters.Add(sqlParamSeasonDetails);
+
+                            using (var transaction = sqliteConnection.BeginTransaction())
+                            {
+                                var pid = 0;
+                                foreach (var flow in rcsFlowlist)
+                                {
+                                    sqlParamPID.Value = pid;
+                                    sqlParamRoute.Value = flow.Route;
+                                    sqlParamOrigin.Value = flow.Origin;
+                                    sqlParamDestination.Value = flow.Destination;
+                                    routeCmd.ExecuteNonQuery();
+
+                                    sqlParamPID2.Value = pid;
+                                    
+                                    foreach (var ticket in flow.TicketList)
+                                    {
+                                        sqlParamFTOT.Value = ticket.TicketCode;
+                                        foreach (var ff in ticket.FFList)
+                                        {
+                                            sqlParamDFrom.Value = ff.StartDate;
+                                            sqlParamDUntil.Value = ff.EndDate;
+                                            sqlParamSeasonDetails.Value = ff.SeasonIndicator;
+                                            sqlParamPDate.Value = ff.QuoteDate;
+                                            sqlParamPRef.Value = ff.Key;
+                                            sqlParamFulfilMethod.Value = "00001";
+                                            ticketCmd.ExecuteNonQuery();
+                                        }
+                                    }
+
+                                    pid++;
+                                }
+                                transaction.Commit();
+                            }
+                        }
                     }
                 }
             }
