@@ -14,23 +14,6 @@ namespace RcsConverter
 {
     internal class Program
     {
-        //private static string GetRJISLocFilename()
-        //{
-        //    string rjisFolder;
-        //    if (!folders.TryGetValue("RJIS", out rjisFolder))
-        //    {
-        //        throw new Exception($"You must define the RJIS folder in the settings file {settingsFile}");
-        //    }
-        //    var files = Directory.GetFiles(rjisFolder, "RJFAF*.loc");
-        //    if (files.Count() == 0)
-        //    {
-        //        throw new Exception($"No RJIS .LOC file found in the folder {rjisFolder}");
-        //    }
-            
-        //    return files.Last();
-        //}
-
-
         private static void Main(string[] args)
         {   
             try
@@ -49,6 +32,7 @@ namespace RcsConverter
                 Directory.CreateDirectory(programFolder);
 
                 var settings = new Settings();
+                settings.Warnings.ForEach(x => Console.WriteLine($"{x}"));
                 var filenameProcessor = new FilenameProcessor(settings);
 
                 var flowFilename = filenameProcessor.GetFlowRefreshFilename();
@@ -121,8 +105,19 @@ namespace RcsConverter
                         rcsRefreshProcessor.ReIndex();
                     } // foreach update
 
-                    var dbCreator = new DbCreator(rcsRefreshProcessor.RcsFlowList, rjisProcessor);
-                    dbCreator.CreateIndividualDBS();
+                    if (!rjisProcessor.RJISAvailable)
+                    {
+                        throw new Exception("Cannot create per station databases as there is no RJIS data available.");
+                    }
+
+                    if (args.Count() > 0)
+                    {
+                        if (settings.PerTocNlcList.TryGetValue(args[0], out var nlcSet))
+                        {
+                            var dbCreator = new DbCreator(rcsRefreshProcessor.RcsFlowList, rjisProcessor, settings);
+                            dbCreator.CreateIndividualDBs(nlcSet);
+                        }
+                    }
 
                 }
                 Thread.Sleep(100000000);

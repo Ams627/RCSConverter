@@ -69,6 +69,7 @@
     <Compile Include="DbCreator.cs" />
     <Compile Include="FilenameProcessor.cs" />
     <Compile Include="FlowDB.cs" />
+    <Compile Include="LinqExtensions.cs" />
     <Compile Include="LRUCache.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -79,6 +80,7 @@
     <Compile Include="RCSTicket.cs" />
     <Compile Include="RJISProcessor.cs" />
     <Compile Include="Settings.cs" />
+    <Compile Include="SimpleSQLOperation.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

@@ -13,7 +13,7 @@ namespace RcsConverter
     {
         Settings settings;
         string rjisZipname;
-
+        public bool RJISAvailable { get; private set; } = false;
         /// <summary>
         /// the key is a group NLC and the value is a list of members of the group
         /// </summary>
@@ -52,49 +52,50 @@ namespace RcsConverter
                 Directory.CreateDirectory(tempfolder);
             }
 
-            using (var archive = ZipFile.OpenRead(rjisZipname))
+            if (!string.IsNullOrEmpty(rjisZipname))
             {
-                foreach (var entry in archive.Entries)
+                using (var archive = ZipFile.OpenRead(rjisZipname))
                 {
-                    var destinationPath = Path.Combine(tempfolder, entry.FullName);
-                    if (!File.Exists(destinationPath))
+                    foreach (var entry in archive.Entries)
                     {
-                        entry.ExtractToFile(destinationPath);
-                    }
-                }
-            }
-
-            var locfiles = Directory.GetFiles(tempfolder, "RJFAF*.LOC").ToList();
-            locfiles.RemoveAll(s=> !Regex.Match(s, @"RJFAF\d{3}\.LOC$", RegexOptions.IgnoreCase).Success);
-            if (locfiles.Count < 1)
-            {
-                throw new Exception($"At least one RJIS loc file must be specified in the RJISZIPS folder in the settings file {settings.SettingsFile}");
-            }
-
-            var filename = locfiles.Last();
-
-            using (var fileStream = File.OpenRead(filename))
-            using (var streamReader = new StreamReader(fileStream))
-            {
-                string line;
-                while ((line = streamReader.ReadLine()) != null)
-                {
-                    if (line.Length == 289 && line.Substring(1, 3) == "L70")
-                    {
-                        var nlc = line.Substring(36, 4);
-                        var faregroup = line.Substring(69, 4);
-                        if (nlc != faregroup)
+                        var destinationPath = Path.Combine(tempfolder, entry.FullName);
+                        if (!File.Exists(destinationPath))
                         {
-                            AddGroupMember(faregroup, nlc);
+                            entry.ExtractToFile(destinationPath);
                         }
                     }
                 }
+
+                var locfiles = Directory.GetFiles(tempfolder, "RJFAF*.LOC").ToList();
+                locfiles.RemoveAll(s => !Regex.Match(s, @"RJFAF\d{3}\.LOC$", RegexOptions.IgnoreCase).Success);
+                if (locfiles.Count < 1)
+                {
+                    throw new Exception($"At least one RJIS loc file must be specified in the RJISZIPS folder in the settings file {settings.SettingsFile}");
+                }
+
+                var filename = locfiles.Last();
+
+                using (var fileStream = File.OpenRead(filename))
+                using (var streamReader = new StreamReader(fileStream))
+                {
+                    string line;
+                    while ((line = streamReader.ReadLine()) != null)
+                    {
+                        if (line.Length == 289 && line.Substring(1, 3) == "L70")
+                        {
+                            var nlc = line.Substring(36, 4);
+                            var faregroup = line.Substring(69, 4);
+                            if (nlc != faregroup)
+                            {
+                                AddGroupMember(faregroup, nlc);
+                            }
+                        }
+                    }
+                }
+                RJISAvailable = true;
             }
 
-
         }
-
-
 
     }
 }

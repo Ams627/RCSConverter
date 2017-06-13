@@ -2,11 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Reflection;
 using System.Diagnostics;
 using System.IO;
 using System.Xml.Linq;
+using System.Xml;
 
 namespace RcsConverter
 {
@@ -27,6 +29,8 @@ namespace RcsConverter
 
         public string MyProperty { get; set; }
         public HashSet<string> TicketTypes { get; set; }
+        public Dictionary<string, HashSet<string>> PerTocNlcList { get; private set; }
+        public List<string> Warnings { get; private set; } = new List<string>();
 
 
         public Settings()
@@ -48,7 +52,9 @@ namespace RcsConverter
             // it as an emergency procedure:
             Directory.CreateDirectory(programFolder);
             SettingsFile = Path.Combine(programFolder, "settings.xml");
-            var doc = XDocument.Load(SettingsFile);
+
+            // LoadOptions.SetLineInfo sets the line number info for the settings file which is used for error reporting:
+            var doc = XDocument.Load(SettingsFile, LoadOptions.SetLineInfo);
             folders = doc.Descendants("Folders").Elements("Folder").Select(folder => new
             {
                 Name = (string)folder.Attribute("Name"),
@@ -73,6 +79,38 @@ namespace RcsConverter
                     throw new Exception($"Invalid ticket type {ticket} specified.");
                 }
             }
+
+            var query = from stationsetName in doc.Descendants("StationSet")
+                        let station = stationsetName.Elements("Stations").Attributes("Nlc")
+                        select new
+                        {
+                            Origin = stationsetName.Attribute("Name"),
+                            S = station
+                        };
+
+           
+            var nodes = doc.Descendants().Where(x => x.Name.LocalName.Length > 0 && !char.IsUpper(x.Name.LocalName[0])).Distinct();
+            foreach (var node in nodes)
+            {
+                var li = node as IXmlLineInfo;
+                Warnings.Add($"Node name {node.Name.LocalName} does not meet schema rules (must start with upper case) at line number {li.LineNumber}");
+            }
+
+            var stations = doc.Descendants("Station").Where(x => x.Attribute("Nlc") == null);
+            foreach (var invalidStation in stations)
+            {
+                var li = invalidStation as IXmlLineInfo;
+                Warnings.Add($"Warning: <Station> node does not have an NLC code at line {li.LineNumber}");
+            }
+            stations = doc.Descendants("Station").Where(x => x.Attribute("Nlc") != null && !Regex.Match(x.Attribute("Nlc").Value, "^[0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z]$").Success);
+            foreach (var invalidStation in stations)
+            {
+                var li = invalidStation as IXmlLineInfo;
+                Warnings.Add($"Warning: <Station> node does not have a valid NLC code at line {li.LineNumber}");
+            }
+
+            var validStationSets = doc.Element("Settings").Elements("StationSets").Elements("StationSet").Where(x => x.Attribute("Name") != null);
+            PerTocNlcList = validStationSets.ToDictionary(x => x.Attribute("Name").Value, x => x.Descendants("Station").Where(e => e.Attribute("Nlc") != null).Select(e => e.Attribute("Nlc").Value).ToHashSet(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
         }
 
         public (bool, string) GetFolder(string name)

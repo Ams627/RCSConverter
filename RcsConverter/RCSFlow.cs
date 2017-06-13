@@ -11,7 +11,7 @@ namespace RcsConverter
         Delete,
         ForDeletion
     }
-    class RCSFlow : IEquatable<RCSFlow>
+    class RCSFlow : IEquatable<RCSFlow>, IComparable<RCSFlow>
     {
         public RCSFRecordType recordType { get; set; }
         public string Origin { get; set; }
@@ -47,6 +47,11 @@ namespace RcsConverter
             {
                 throw new Exception($"Invalid record type: {s}");
             }
+        }
+
+        public int CompareTo(RCSFlow other)
+        {
+            return LookupKey.CompareTo(other.LookupKey);
         }
     }
 }
