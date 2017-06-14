@@ -88,7 +88,6 @@ namespace RcsConverter
                             Origin = stationsetName.Attribute("Name"),
                             S = station
                         };
-
            
             var nodes = doc.Descendants().Where(x => x.Name.LocalName.Length > 0 && !char.IsUpper(x.Name.LocalName[0])).Distinct();
             foreach (var node in nodes)

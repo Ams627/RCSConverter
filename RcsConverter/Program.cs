@@ -116,18 +116,10 @@ namespace RcsConverter
                         throw new Exception("Cannot create per station databases as there is no RJIS data available.");
                     }
 
-                    if (args.Count() > 0)
-                    {
-                        if (settings.PerTocNlcList.TryGetValue(args[0], out var nlcSet))
-                        {
-                            var dbCreator = new DbCreator(rcsRefreshProcessor.RcsFlowList, rjisProcessor, settings);
-                            dbCreator.CreateIndividualDBs(nlcSet);
-                        }
-                    }
-
+                    var dbCreator = new DbCreator(rcsRefreshProcessor.RcsFlowList, rjisProcessor, settings);
+                    dbCreator.CreateIndividualDBs();
                 }
-                Console.WriteLine("Sleeping");
-                Thread.Sleep(100000000);
+                Console.WriteLine("Finished");
             }
             catch (Exception ex)
             {
