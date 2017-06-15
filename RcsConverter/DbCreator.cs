@@ -42,10 +42,6 @@ namespace RcsConverter
         {
             foreach (var flow in rcsFlowList)
             {
-                if (flow.Origin == "8469")
-                {
-                    Console.WriteLine("");
-                }
                 var origingGroupMembers = rjisprocessor.GetGroupMembers(flow.Origin);
                 var destinationGroupMembers = rjisprocessor.GetGroupMembers(flow.Destination);
                 if (origingGroupMembers != null)
@@ -91,7 +87,6 @@ namespace RcsConverter
             {
                 throw new Exception($"Cannot get database folder from settings file {settings.SettingsFile}");
             }
-
 
             foreach (var toc in settings.PerTocNlcList.Keys)
             {

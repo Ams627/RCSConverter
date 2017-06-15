@@ -93,7 +93,16 @@ namespace RcsConverter
             foreach (var node in nodes)
             {
                 var li = node as IXmlLineInfo;
-                Warnings.Add($"Node name {node.Name.LocalName} does not meet schema rules (must start with upper case) at line number {li.LineNumber}");
+                Warnings.Add($"Node name {node.Name.LocalName} does not meet schema rules (must start with upper case) at line {li.LineNumber}");
+            }
+
+            // get the set of all attributes in the document:
+            var attributes = doc.Descendants().SelectMany(x => x.Attributes()).Where(y => y.Name.LocalName.Length > 0 && !char.IsUpper(y.Name.LocalName[0]));
+//            var attributes = doc.Descendants().Select(x => x.Attributes().Select(y => y.Name)).SelectMany(z => z).Select(n => n.LocalName).Distinct();
+            foreach (var attribute in attributes)
+            {
+                var li = attribute as IXmlLineInfo;
+                Warnings.Add($"attribute name {attribute.Name.LocalName} does not meet schema rules (must start with upper case) at line {li.LineNumber}");
             }
 
             var stations = doc.Descendants("Station").Where(x => x.Attribute("Nlc") == null);
