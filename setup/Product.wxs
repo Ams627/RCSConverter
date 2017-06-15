@@ -4,7 +4,7 @@
 		<Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
 
 		<MajorUpgrade DowngradeErrorMessage="A newer version of RCSConverter is already installed." />
-		<MediaTemplate />
+		<!--<MediaTemplate />-->
     <Media Cabinet="rcs1.cab" EmbedCab="yes" Id="409"/>
 		<Feature Id="ProductFeature" Title="Setup" Level="1">
 			<ComponentGroupRef Id="ProductComponents" />

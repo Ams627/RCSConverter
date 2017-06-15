@@ -81,13 +81,17 @@ namespace RcsConverter
         }
         public void CreateIndividualDBs()
         {
+            var startdbTime = DateTime.Now;
+            Console.WriteLine("started building database.");
             BuildNLCIndex();
+            Console.WriteLine("Per TOC index into flow table built.");
             var (ok, dbFolder) = settings.GetFolder("Database");
             if (!ok)
             {
                 throw new Exception($"Cannot get database folder from settings file {settings.SettingsFile}");
             }
 
+            // first for each TOC:
             foreach (var toc in settings.PerTocNlcList.Keys)
             {
                 if (!settings.PerTocTicketTypeList.TryGetValue(toc, out var validTicketTypes))
@@ -101,21 +105,23 @@ namespace RcsConverter
                 {
                     foreach (var station in settings.PerTocNlcList[toc])
                     {
-                        var databaseName = Path.Combine(dbFolder, toc, $"RCSFlow-{station}.sqlite");
-                        UpdateBatch(outfile, databaseName);
-
-                        SQLiteConnection.CreateFile(databaseName);
-                        using (var sqliteConnection = new SQLiteConnection("Data Source=" + databaseName + ";"))
+                        if (dbStationLookup.TryGetValue(station, out var rcsFlowlist) && rcsFlowList.Count() > 0)
                         {
-                            sqliteConnection.Open();
-                            SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_DB(SeqNo INTEGER PRIMARY KEY, Date date)", sqliteConnection);
-                            SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_ROUTE_DB(pID INTEGER PRIMARY KEY, Orig VARCHAR, Dest VARCHAR, Route VARCHAR)", sqliteConnection);
-                            SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_TICKET_DB(pID INTEGER REFERENCES RCS_FLOW_ROUTE_DB(pID) ON DELETE CASCADE, FTOT VARCHAR, DFrom date, DUntil date, FulfilMethod VARCHAR, pDate date, pRef VARCHAR, SeasonDetails VARCHAR)", sqliteConnection);
+                            var databaseName = Path.Combine(dbFolder, toc, $"RCSFlow-{station}.sqlite");
+                            UpdateBatch(outfile, databaseName);
 
-                            SimpleSQLOperation.Run($"INSERT INTO RCS_FLOW_DB(SeqNo, Date) VALUES(0, \"{DateTime.Today.ToString("yyyy-MM-dd HH:mm:ss.F")}\")", sqliteConnection);
-
-                            if (dbStationLookup.TryGetValue(station, out var rcsFlowlist))
+                            SQLiteConnection.CreateFile(databaseName);
+                            var insertions = 0;
+                            using (var sqliteConnection = new SQLiteConnection("Data Source=" + databaseName + ";"))
                             {
+                                sqliteConnection.Open();
+                                SimpleSQLOperation.Run("PRAGMA journal_mode=OFF", sqliteConnection);
+                                SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_DB(SeqNo INTEGER PRIMARY KEY, Date date)", sqliteConnection);
+                                SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_ROUTE_DB(pID INTEGER PRIMARY KEY, Orig VARCHAR, Dest VARCHAR, Route VARCHAR)", sqliteConnection);
+                                SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_TICKET_DB(pID INTEGER REFERENCES RCS_FLOW_ROUTE_DB(pID) ON DELETE CASCADE, FTOT VARCHAR, DFrom date, DUntil date, FulfilMethod VARCHAR, pDate date, pRef VARCHAR, SeasonDetails VARCHAR)", sqliteConnection);
+
+                                SimpleSQLOperation.Run($"INSERT INTO RCS_FLOW_DB(SeqNo, Date) VALUES(0, \"{DateTime.Today.ToString("yyyy-MM-dd HH:mm:ss.F")}\")", sqliteConnection);
+
                                 var insertRoute = "INSERT INTO RCS_FLOW_ROUTE_DB(pID, orig, dest, route) VALUES(?, ?, ?, ?)";
                                 var insertTicket = "INSERT INTO RCS_FLOW_TICKET_DB(pID, FTOT, DFrom, Duntil, FulfilMethod, pDate, pRef, SeasonDetails) VALUES(?, ?, ?, ?, ?, ?, ?, ?)";
 
@@ -155,9 +161,8 @@ namespace RcsConverter
                                         var pid = 0;
                                         foreach (var flow in rcsFlowlist)
                                         {
-                                            //var anyValidTicketTypes = flow.TicketList.Select(x => validTicketTypes.Contains(x.TicketCode)).Any(b => b);
-
-                                            var anyValidTicketTypes = validTicketTypes.Intersect(flow.TicketList.Select(x => x.TicketCode)).Any();
+                                            var allTicketTypesValid = validTicketTypes == null || validTicketTypes.Count == 0;
+                                            var anyValidTicketTypes = allTicketTypesValid || validTicketTypes.Intersect(flow.TicketList.Select(x => x.TicketCode)).Any();
 
                                             if (anyValidTicketTypes)
                                             {
@@ -171,7 +176,7 @@ namespace RcsConverter
 
                                                 foreach (var ticket in flow.TicketList)
                                                 {
-                                                    if (validTicketTypes.Contains(ticket.TicketCode))
+                                                    if (allTicketTypesValid || validTicketTypes.Contains(ticket.TicketCode))
                                                     {
                                                         sqlParamFTOT.Value = ticket.TicketCode;
                                                         foreach (var ff in ticket.FFList)
@@ -183,6 +188,7 @@ namespace RcsConverter
                                                             sqlParamPRef.Value = ff.Key;
                                                             sqlParamFulfilMethod.Value = "00001";
                                                             ticketCmd.ExecuteNonQuery();
+                                                            insertions++;
                                                         }
                                                     }
                                                 }
@@ -190,13 +196,21 @@ namespace RcsConverter
                                             }
                                         }
                                         transaction.Commit();
+                                        SimpleSQLOperation.Run("CREATE INDEX ORIGDEST ON RCS_FLOW_ROUTE_DB(ORIG, DEST)", sqliteConnection);
+                                        SimpleSQLOperation.Run("CREATE INDEX PID ON RCS_FLOW_TICKET_DB(pID)", sqliteConnection);
                                     }
                                 }
+                            } // using SQLiteConnection
+                            if (insertions == 0)
+                            {
+                                File.Delete(databaseName);
                             }
-                        }
-                    }
-                }
-            }
-        }
+                        } 
+                    } // foreach station
+                } // using batch file
+            } // foreach TOC
+            var dbDuration = DateTime.Now - startdbTime;
+            Console.WriteLine($"Database creation: duration: {dbDuration.Minutes:D2}:{dbDuration.Seconds:D2}");
+        } // end method
     }
 }

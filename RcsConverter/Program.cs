@@ -18,6 +18,7 @@ namespace RcsConverter
         {   
             try
             {
+                var startTime = DateTime.Now;
                 var versionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetEntryAssembly().Location);
                 var companyName = versionInfo.CompanyName;
                 var productName = versionInfo.ProductName;
@@ -119,7 +120,11 @@ namespace RcsConverter
                     var dbCreator = new DbCreator(rcsRefreshProcessor.RcsFlowList, rjisProcessor, settings);
                     dbCreator.CreateIndividualDBs();
                 }
-                Console.WriteLine("Finished");
+                var endtime = DateTime.Now;
+                var minutes = (endtime - startTime).Minutes;
+                var seconds = (endtime - startTime).Seconds;
+                Console.WriteLine($"Duration: {minutes:D2}:{seconds:D2}.");
+                Console.WriteLine("Finished.");
             }
             catch (Exception ex)
             {

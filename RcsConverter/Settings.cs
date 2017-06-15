@@ -124,7 +124,7 @@ namespace RcsConverter
             PerTocTicketTypeList = validStationSets.ToDictionary(
                 x => x.Attribute("Name").Value,
                 x => x.Descendants("TicketType").Where(e => e.Attribute("Code") != null).Select(e => e.Attribute("Code").Value).ToHashSet(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
-
+            Console.WriteLine("");
         }
 
         public (bool, string) GetFolder(string name)
