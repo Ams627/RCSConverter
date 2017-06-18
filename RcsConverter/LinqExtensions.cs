@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 
 namespace RcsConverter
 {
@@ -12,6 +8,12 @@ namespace RcsConverter
         {
             return new SortedSet<T>(source);
         }
+
+        public static SortedSet<T> ToSortedSet<T>(this IEnumerable<T> source, IComparer<T> comparer)
+        {
+            return new SortedSet<T>(source, comparer);
+        }
+
         public static HashSet<T> ToHashSet<T>(this IEnumerable<T> source)
         {
             return new HashSet<T>(source);

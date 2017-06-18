@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Reflection;
 using System.Diagnostics;
 using System.IO;
@@ -14,11 +12,27 @@ namespace RcsConverter
 {
     class Settings
     {
+        private static string settingsFile;
+        public enum SetOptions
+        {
+            AllStations,
+            AllSetsInSettingsFile,
+            SpecificSets
+        }
+
+        public static string GetSettingsFile()
+        {
+            return settingsFile;
+        }
         /// <summary>
         /// Path for settings.xml - normally %appdata%/Parkeon/RcsConverter
         /// </summary>
         public string SettingsFile { get; private set; }
-        public string ProductName { get; private set; }
+        public static string ProductName { get; private set; }
+
+        public SetOptions SetOption { get; set; }
+
+        public List<string> SetsToProduce { get; set; }
 
         /// <summary>
         /// a dictionary of folder types - keys are any of the following: RJIS, RCSFLOW, TEMP, IDMS - each
@@ -29,12 +43,11 @@ namespace RcsConverter
 
         public string CurrentTocName { get; set; }
         public HashSet<string> TicketTypes { get; set; }
-        public Dictionary<string, HashSet<string>> PerTocNlcList { get; private set; }
+        public Dictionary<string, SortedSet<string>> PerTocNlcList { get; private set; }
         public Dictionary<string, HashSet<string>> PerTocTicketTypeList { get; private set; }
         public List<string> Warnings { get; private set; } = new List<string>();
 
-
-        public Settings()
+        static Settings()
         {
             var versionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetEntryAssembly().Location);
             var companyName = versionInfo.CompanyName;
@@ -52,7 +65,13 @@ namespace RcsConverter
             // create the program folder if it does not exist. We should never need to do this but we will do
             // it as an emergency procedure:
             Directory.CreateDirectory(programFolder);
-            SettingsFile = Path.Combine(programFolder, "settings.xml");
+            settingsFile = Path.Combine(programFolder, "settings.xml");
+        }
+
+        public Settings()
+        {
+            // copy static settings file to instance:
+            SettingsFile = settingsFile;
 
             // LoadOptions.SetLineInfo sets the line number info for the settings file which is used for error reporting:
             var doc = XDocument.Load(SettingsFile, LoadOptions.SetLineInfo);
@@ -73,6 +92,7 @@ namespace RcsConverter
             TicketTypes = new HashSet<string>(doc.Descendants("TicketTypes").Elements("TicketType").Select(ticketType =>
                 (string)ticketType.Attribute("Name")));
 
+            // check ticket codes are all 3 characters and only upper case letters or digits:
             foreach (var ticket in TicketTypes)
             {
                 if (string.IsNullOrWhiteSpace(ticket) || ticket.Length != 3 || ticket.Any(c=>!char.IsUpper(c) && !char.IsDigit(c)))
@@ -81,14 +101,7 @@ namespace RcsConverter
                 }
             }
 
-            var query = from stationsetName in doc.Descendants("StationSet")
-                        let station = stationsetName.Elements("Stations").Attributes("Nlc")
-                        select new
-                        {
-                            Origin = stationsetName.Attribute("Name"),
-                            S = station
-                        };
-           
+            // Check all XML element names are in sentence case:
             var nodes = doc.Descendants().Where(x => x.Name.LocalName.Length > 0 && !char.IsUpper(x.Name.LocalName[0])).Distinct();
             foreach (var node in nodes)
             {
@@ -96,21 +109,23 @@ namespace RcsConverter
                 Warnings.Add($"Node name {node.Name.LocalName} does not meet schema rules (must start with upper case) at line {li.LineNumber}");
             }
 
-            // get the set of all attributes in the document:
+            // Check all XML attribute names are in sentence case:
             var attributes = doc.Descendants().SelectMany(x => x.Attributes()).Where(y => y.Name.LocalName.Length > 0 && !char.IsUpper(y.Name.LocalName[0]));
-//            var attributes = doc.Descendants().Select(x => x.Attributes().Select(y => y.Name)).SelectMany(z => z).Select(n => n.LocalName).Distinct();
             foreach (var attribute in attributes)
             {
                 var li = attribute as IXmlLineInfo;
                 Warnings.Add($"attribute name {attribute.Name.LocalName} does not meet schema rules (must start with upper case) at line {li.LineNumber}");
             }
 
+            // Check for stations without Nlc codes:
             var stations = doc.Descendants("Station").Where(x => x.Attribute("Nlc") == null);
             foreach (var invalidStation in stations)
             {
                 var li = invalidStation as IXmlLineInfo;
                 Warnings.Add($"Warning: <Station> node does not have an NLC code at line {li.LineNumber}");
             }
+
+            // Check all NLC codes are valid:
             stations = doc.Descendants("Station").Where(x => x.Attribute("Nlc") != null && !Regex.Match(x.Attribute("Nlc").Value, "^[0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z]$").Success);
             foreach (var invalidStation in stations)
             {
@@ -119,7 +134,14 @@ namespace RcsConverter
             }
 
             var validStationSets = doc.Element("Settings").Elements("StationSets").Elements("StationSet").Where(x => x.Attribute("Name") != null);
-            PerTocNlcList = validStationSets.ToDictionary(x => x.Attribute("Name").Value, x => x.Descendants("Station").Where(e => e.Attribute("Nlc") != null).Select(e => e.Attribute("Nlc").Value).ToHashSet(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+            var allUsed = validStationSets.Where(x => x.Attribute("Name").Value.ToLower() == "all");
+            if (allUsed.Count() != 0)
+            {
+                var badname = allUsed.First().Attribute("Name").Value;
+                var li = allUsed.First() as IXmlLineInfo;
+                throw new Exception($"You cannot use \"{badname}\" as the name of a station set (at line {li.LineNumber} in {SettingsFile}) - it is a reserved word.");
+            }
+            PerTocNlcList = validStationSets.ToDictionary(x => x.Attribute("Name").Value, x => x.Descendants("Station").Where(e => e.Attribute("Nlc") != null).Select(e => e.Attribute("Nlc").Value).ToSortedSet(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
 
             PerTocTicketTypeList = validStationSets.ToDictionary(
                 x => x.Attribute("Name").Value,

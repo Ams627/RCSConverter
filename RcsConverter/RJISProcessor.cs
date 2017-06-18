@@ -3,9 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace RcsConverter
 {
@@ -45,7 +43,7 @@ namespace RcsConverter
         private void ProcessFiles()
         {
             var tempfolder = Path.GetTempPath();
-            var progname = settings.ProductName;
+            var progname = Settings.ProductName;
             tempfolder = Path.Combine(tempfolder, progname, "RCSunzip");
             if (!Directory.Exists(tempfolder))
             {

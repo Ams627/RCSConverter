@@ -2,18 +2,17 @@
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Data.SQLite;
+using System.Xml.Linq;
 
 namespace RcsConverter
 {
     class DbCreator
     {
-        List<RCSFlow> rcsFlowList;
         Dictionary<string, SortedSet<RCSFlow>> dbStationLookup = new Dictionary<string, SortedSet<RCSFlow>>();
-        RJISProcessor rjisprocessor;
-        Settings settings;
+        readonly List<RCSFlow> rcsFlowList;
+        readonly RJISProcessor rjisprocessor;
+        readonly Settings settings;
 
         public DbCreator(List<RCSFlow> rcsFlowList, RJISProcessor rjisFlowProcessor, Settings settings)
         {
@@ -67,8 +66,8 @@ namespace RcsConverter
                     AddStationEntry(flow.Destination, flow);
                 }
             }
-
         }
+
 
         void UpdateBatch(StreamWriter w, string filename)
         {
@@ -79,6 +78,19 @@ namespace RcsConverter
             w.WriteLine($"select * from rcs_flow_ticket_db;");
             w.WriteLine($"HERE");
         }
+
+        void PrepareDatabase(SQLiteConnection sqliteConnection)
+        {
+            sqliteConnection.Open();
+            SimpleSQLOperation.Run("PRAGMA journal_mode=OFF", sqliteConnection);
+            SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_DB(SeqNo INTEGER PRIMARY KEY, Date date)", sqliteConnection);
+            SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_ROUTE_DB(pID INTEGER PRIMARY KEY, Orig VARCHAR, Dest VARCHAR, Route VARCHAR)", sqliteConnection);
+            SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_TICKET_DB(pID INTEGER REFERENCES RCS_FLOW_ROUTE_DB(pID) ON DELETE CASCADE, FTOT VARCHAR, DFrom date, DUntil date, FulfilMethod VARCHAR, pDate date, pRef VARCHAR, SeasonDetails VARCHAR)", sqliteConnection);
+
+            SimpleSQLOperation.Run($"INSERT INTO RCS_FLOW_DB(SeqNo, Date) VALUES(0, \"{DateTime.Today.ToString("yyyy-MM-dd HH:mm:ss.F")}\")", sqliteConnection);
+        }
+
+
         public void CreateIndividualDBs()
         {
             var startdbTime = DateTime.Now;
@@ -91,116 +103,101 @@ namespace RcsConverter
                 throw new Exception($"Cannot get database folder from settings file {settings.SettingsFile}");
             }
 
-            // first for each TOC:
-            foreach (var toc in settings.PerTocNlcList.Keys)
+            List<string> tocsToProduce = null;
+            switch (settings.SetOption)
             {
-                if (!settings.PerTocTicketTypeList.TryGetValue(toc, out var validTicketTypes))
-                {
-                    throw new Exception($"Cannot find ticket types for station set {toc}.");
-                }
+                case Settings.SetOptions.AllStations:
+                    tocsToProduce = new List<string> { "all" };
+                    break;
+                case Settings.SetOptions.AllSetsInSettingsFile:
+                    tocsToProduce = new List<string>(settings.PerTocNlcList.Keys);
+                    break;
+                case Settings.SetOptions.SpecificSets:
+                    tocsToProduce = new List<string>(settings.SetsToProduce);
+                    break;
+            }
+
+            // first for each TOC:
+            foreach (var toc in tocsToProduce)
+            {
+                settings.PerTocTicketTypeList.TryGetValue(toc, out var validTicketTypes);
 
                 Directory.CreateDirectory(Path.Combine(dbFolder, toc));
-                var batchname = Path.Combine(dbFolder, toc, "sqldumper.btm");
+                var batchname = Path.Combine(dbFolder, toc, "sqldumper.bat");
                 using (var outfile = new StreamWriter(batchname))
                 {
-                    foreach (var station in settings.PerTocNlcList[toc])
+                    var stationList = toc == "all" ? dbStationLookup.Keys.ToList() : settings.PerTocNlcList[toc].ToList();
+                    var stationsCompleted = 0;
+                    foreach (var station in stationList)
                     {
-                        if (dbStationLookup.TryGetValue(station, out var rcsFlowlist) && rcsFlowList.Count() > 0)
+                        Console.Write($"{toc}: done {stationsCompleted} stations from {stationList.Count()}\r");
+                        if (dbStationLookup.TryGetValue(station, out var singleStationRCSFlowList) && rcsFlowList.Count() > 0)
                         {
+                            var xmlOutputName = Path.Combine(dbFolder, toc, $"RCSFlow-{station}.xml");
+                            var outputDoc = new XDocument(new XElement("RCSFlow",
+                                from flow in singleStationRCSFlowList
+                                select new XElement("F",
+                                   new XAttribute("r", flow.Route),
+                                   new XAttribute("o", flow.Origin),
+                                   new XAttribute("d", flow.Destination),
+
+                                   from ticket in flow.TicketList
+                                   select
+                                 new XElement("T", new XAttribute("t", ticket.TicketCode),
+                                 from ff in ticket.FFList
+                                 select
+                                     new XElement("FF",
+                                         ff.EndDate == null ? null : new XAttribute("u", ff.EndDate),
+                                         ff.StartDate == null ? null : new XAttribute("f", ff.StartDate),
+                                         ff.SeasonIndicator == null ? null : new XAttribute("s", ff.SeasonIndicator),
+                                         ff.QuoteDate == null ? null : new XAttribute("p", ff.QuoteDate),
+                                         ff.Key == null ? null : new XAttribute("k", ff.Key),
+                                         new XAttribute("fm", "00001")
+                                     )))));
+
+                            outputDoc.Save(xmlOutputName);
                             var databaseName = Path.Combine(dbFolder, toc, $"RCSFlow-{station}.sqlite");
                             UpdateBatch(outfile, databaseName);
-
                             SQLiteConnection.CreateFile(databaseName);
                             var insertions = 0;
+
                             using (var sqliteConnection = new SQLiteConnection("Data Source=" + databaseName + ";"))
+                            using (var routeCmd = new RouteCommand(sqliteConnection))
+                            using (var ticketCmd = new TicketCommand(sqliteConnection))
                             {
-                                sqliteConnection.Open();
-                                SimpleSQLOperation.Run("PRAGMA journal_mode=OFF", sqliteConnection);
-                                SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_DB(SeqNo INTEGER PRIMARY KEY, Date date)", sqliteConnection);
-                                SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_ROUTE_DB(pID INTEGER PRIMARY KEY, Orig VARCHAR, Dest VARCHAR, Route VARCHAR)", sqliteConnection);
-                                SimpleSQLOperation.Run("CREATE TABLE IF NOT EXISTS RCS_FLOW_TICKET_DB(pID INTEGER REFERENCES RCS_FLOW_ROUTE_DB(pID) ON DELETE CASCADE, FTOT VARCHAR, DFrom date, DUntil date, FulfilMethod VARCHAR, pDate date, pRef VARCHAR, SeasonDetails VARCHAR)", sqliteConnection);
-
-                                SimpleSQLOperation.Run($"INSERT INTO RCS_FLOW_DB(SeqNo, Date) VALUES(0, \"{DateTime.Today.ToString("yyyy-MM-dd HH:mm:ss.F")}\")", sqliteConnection);
-
-                                var insertRoute = "INSERT INTO RCS_FLOW_ROUTE_DB(pID, orig, dest, route) VALUES(?, ?, ?, ?)";
-                                var insertTicket = "INSERT INTO RCS_FLOW_TICKET_DB(pID, FTOT, DFrom, Duntil, FulfilMethod, pDate, pRef, SeasonDetails) VALUES(?, ?, ?, ?, ?, ?, ?, ?)";
-
-                                using (var routeCmd = new SQLiteCommand(insertRoute, sqliteConnection))
-                                using (var ticketCmd = new SQLiteCommand(insertTicket, sqliteConnection))
+                                PrepareDatabase(sqliteConnection);
+                                using (var transaction = sqliteConnection.BeginTransaction())
                                 {
-                                    var sqlParamPID = new SQLiteParameter();
-                                    var sqlParamOrigin = new SQLiteParameter();
-                                    var sqlParamRoute = new SQLiteParameter();
-                                    var sqlParamDestination = new SQLiteParameter();
-
-                                    routeCmd.Parameters.Add(sqlParamPID);
-                                    routeCmd.Parameters.Add(sqlParamOrigin);
-                                    routeCmd.Parameters.Add(sqlParamDestination);
-                                    routeCmd.Parameters.Add(sqlParamRoute);
-
-                                    var sqlParamPID2 = new SQLiteParameter();
-                                    var sqlParamFTOT = new SQLiteParameter();
-                                    var sqlParamDFrom = new SQLiteParameter();
-                                    var sqlParamDUntil = new SQLiteParameter();
-                                    var sqlParamFulfilMethod = new SQLiteParameter();
-                                    var sqlParamPDate = new SQLiteParameter();
-                                    var sqlParamPRef = new SQLiteParameter();
-                                    var sqlParamSeasonDetails = new SQLiteParameter();
-
-                                    ticketCmd.Parameters.Add(sqlParamPID2);
-                                    ticketCmd.Parameters.Add(sqlParamFTOT);
-                                    ticketCmd.Parameters.Add(sqlParamDFrom);
-                                    ticketCmd.Parameters.Add(sqlParamDUntil);
-                                    ticketCmd.Parameters.Add(sqlParamFulfilMethod);
-                                    ticketCmd.Parameters.Add(sqlParamPDate);
-                                    ticketCmd.Parameters.Add(sqlParamPRef);
-                                    ticketCmd.Parameters.Add(sqlParamSeasonDetails);
-
-                                    using (var transaction = sqliteConnection.BeginTransaction())
+                                    var pid = 0;
+                                    foreach (var flow in singleStationRCSFlowList)
                                     {
-                                        var pid = 0;
-                                        foreach (var flow in rcsFlowlist)
+                                        var allTicketTypesValid = validTicketTypes == null || validTicketTypes.Count == 0;
+                                        var anyValidTicketTypes = allTicketTypesValid || validTicketTypes.Intersect(flow.TicketList.Select(x => x.TicketCode)).Any();
+
+                                        if (anyValidTicketTypes)
                                         {
-                                            var allTicketTypesValid = validTicketTypes == null || validTicketTypes.Count == 0;
-                                            var anyValidTicketTypes = allTicketTypesValid || validTicketTypes.Intersect(flow.TicketList.Select(x => x.TicketCode)).Any();
+                                            routeCmd.AddRoute(pid, flow.Route, flow.Origin, flow.Destination);
 
-                                            if (anyValidTicketTypes)
+                                            foreach (var ticket in flow.TicketList)
                                             {
-                                                sqlParamPID.Value = pid;
-                                                sqlParamRoute.Value = flow.Route;
-                                                sqlParamOrigin.Value = flow.Origin;
-                                                sqlParamDestination.Value = flow.Destination;
-                                                routeCmd.ExecuteNonQuery();
-
-                                                sqlParamPID2.Value = pid;
-
-                                                foreach (var ticket in flow.TicketList)
+                                                if (allTicketTypesValid || validTicketTypes.Contains(ticket.TicketCode))
                                                 {
-                                                    if (allTicketTypesValid || validTicketTypes.Contains(ticket.TicketCode))
+                                                    foreach (var ff in ticket.FFList)
                                                     {
-                                                        sqlParamFTOT.Value = ticket.TicketCode;
-                                                        foreach (var ff in ticket.FFList)
-                                                        {
-                                                            sqlParamDFrom.Value = ff.StartDate;
-                                                            sqlParamDUntil.Value = ff.EndDate;
-                                                            sqlParamSeasonDetails.Value = ff.SeasonIndicator;
-                                                            sqlParamPDate.Value = ff.QuoteDate;
-                                                            sqlParamPRef.Value = ff.Key;
-                                                            sqlParamFulfilMethod.Value = "00001";
-                                                            ticketCmd.ExecuteNonQuery();
-                                                            insertions++;
-                                                        }
+                                                        ticketCmd.AddTicket(pid, ticket.TicketCode, ff.StartDate, ff.EndDate, ff.SeasonIndicator, ff.QuoteDate, ff.Key);
+                                                        insertions++;
                                                     }
                                                 }
-                                                pid++;
                                             }
+                                            pid++;
                                         }
-                                        transaction.Commit();
-                                        SimpleSQLOperation.Run("CREATE INDEX ORIGDEST ON RCS_FLOW_ROUTE_DB(ORIG, DEST)", sqliteConnection);
-                                        SimpleSQLOperation.Run("CREATE INDEX PID ON RCS_FLOW_TICKET_DB(pID)", sqliteConnection);
                                     }
+                                    transaction.Commit();
+                                    SimpleSQLOperation.Run("CREATE INDEX ORIGDEST ON RCS_FLOW_ROUTE_DB(ORIG, DEST)", sqliteConnection);
+                                    SimpleSQLOperation.Run("CREATE INDEX PID ON RCS_FLOW_TICKET_DB(pID)", sqliteConnection);
                                 }
-                            } // using SQLiteConnection
+                            }
+                            stationsCompleted++;
                             if (insertions == 0)
                             {
                                 File.Delete(databaseName);

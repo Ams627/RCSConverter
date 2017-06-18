@@ -2,22 +2,32 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 
 namespace RcsConverter
 {
     internal class Program
     {
+        private static void ExecProcess(string program, params string[] args)
+        {
+            var procInfo = new ProcessStartInfo()
+            {
+                FileName = program,
+                Arguments = string.Join(" ", args)
+            };
+            Process.Start(procInfo);
+        }
+        private static bool Compare(string s, string t)
+        {
+            return string.Equals(s, t, StringComparison.OrdinalIgnoreCase);
+        }
+
         private static void Main(string[] args)
         {   
             try
             {
+                Console.WriteLine("Started");
                 var startTime = DateTime.Now;
                 var versionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetEntryAssembly().Location);
                 var companyName = versionInfo.CompanyName;
@@ -32,11 +42,74 @@ namespace RcsConverter
                 // it as an emergency procedure:
                 Directory.CreateDirectory(programFolder);
 
-                var settings = new Settings();
-
-                if (args.Count() > 0)
+                if (args.Count() > 0 && Compare(args[0], "showsettings"))
                 {
-                    settings.CurrentTocName = args[0];
+                    ExecProcess("chrome", Settings.GetSettingsFile());
+                    Environment.Exit(0);
+                }
+                if (args.Count() > 0 && Compare(args[0], "settings"))
+                {
+                    var appname = new GetRegisteredApp(".txt")?.Appname;
+                    if (string.IsNullOrEmpty(appname))
+                    {
+                        throw new Exception($"Cannot get the default application to open {Settings.GetSettingsFile()}");
+                    }
+                    ExecProcess(appname, Settings.GetSettingsFile());
+                    Environment.Exit(0);
+                }
+
+                Settings settings = new Settings();
+                if (args.Count() == 0)
+                {
+                    var codeBase = System.Reflection.Assembly.GetEntryAssembly().CodeBase;
+                    var progname = Path.GetFileNameWithoutExtension(codeBase);
+                    Console.WriteLine($"Usage:");
+                    Console.WriteLine($"    {progname} all - produce databases for all stations with ITSO fares.");
+                    Console.WriteLine($"    {progname} alltocs - produce databases for all tocs specified in the settings file.");
+                    Console.WriteLine($"    {progname} tocs <toc1> <toc2> - produce databases for the specified tocs.");
+                    Console.WriteLine($"    {progname} settings - edit settings file.\n");
+
+                    var tempSettings = new Settings();
+                    if (tempSettings.PerTocNlcList.Count() == 0)
+                    {
+                        Console.WriteLine("No tocs are specifed in the settings file currently");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Current tocs in settings file: ");
+                        Console.Write("    ");
+                        foreach (var toc in settings.PerTocNlcList.Keys)
+                        {
+                            Console.Write($"{toc} ");
+                        }
+                    }
+                    Environment.Exit(-1);
+                }
+
+                if (args[0] == "all")
+                {
+                    settings.SetOption = Settings.SetOptions.AllStations;
+                }
+                else if (args[0] == "alltocs")
+                {
+                    settings.SetOption = Settings.SetOptions.AllSetsInSettingsFile;
+                }
+                else if (args[0] == "tocs" && args.Count() > 1)
+                {
+                    var tocspec = args.ToList().Skip(1);
+                    var settingsTocSet = settings.PerTocNlcList.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    if (tocspec.Intersect(settings.PerTocNlcList.Keys).Count() != tocspec.Count())
+                    {
+                        foreach (var toc in tocspec)
+                        {
+                            if (!settingsTocSet.Contains(toc))
+                            {
+                                Console.Error.WriteLine($"There is no toc {toc} specified in the settings file {settings.SettingsFile}");
+                            }
+                        }
+                        Environment.Exit(-1);
+                    }
+                    settings.SetsToProduce = new List<string>(tocspec);
                 }
 
                 settings.Warnings.ForEach(x => Console.WriteLine($"{x}"));
@@ -128,7 +201,7 @@ namespace RcsConverter
             }
             catch (Exception ex)
             {
-                var codeBase = System.Reflection.Assembly.GetExecutingAssembly().CodeBase;
+                var codeBase = System.Reflection.Assembly.GetEntryAssembly().CodeBase;
                 var progname = Path.GetFileNameWithoutExtension(codeBase);
                 Console.Error.WriteLine(progname + ": Error: " + ex.Message);
             }

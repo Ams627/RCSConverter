@@ -16,15 +16,16 @@
     </NuGetPackageImportStamp>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>x64</PlatformTarget>
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
-    <Optimize>true</Optimize>
+    <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -69,9 +70,8 @@
   <ItemGroup>
     <Compile Include="DbCreator.cs" />
     <Compile Include="FilenameProcessor.cs" />
-    <Compile Include="FlowDB.cs" />
+    <Compile Include="GetRegisteredApp.cs" />
     <Compile Include="LinqExtensions.cs" />
-    <Compile Include="LRUCache.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RCSFF.cs" />
@@ -80,8 +80,10 @@
     <Compile Include="RCSParseUtils.cs" />
     <Compile Include="RCSTicket.cs" />
     <Compile Include="RJISProcessor.cs" />
+    <Compile Include="RouteCommand.cs" />
     <Compile Include="Settings.cs" />
     <Compile Include="SimpleSQLOperation.cs" />
+    <Compile Include="TicketCommand.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
