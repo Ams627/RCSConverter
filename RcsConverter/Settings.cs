@@ -30,6 +30,10 @@ namespace RcsConverter
         public string SettingsFile { get; private set; }
         public static string ProductName { get; private set; }
 
+        /// <summary>
+        /// Produce SQLite output files or not:
+        /// </summary>
+        public bool Sqlite { get; set; } = true;
         public SetOptions SetOption { get; set; }
 
         public List<string> SetsToProduce { get; set; }
@@ -75,6 +79,10 @@ namespace RcsConverter
 
             // LoadOptions.SetLineInfo sets the line number info for the settings file which is used for error reporting:
             var doc = XDocument.Load(SettingsFile, LoadOptions.SetLineInfo);
+
+            var foundNoSqlite = doc.Element("Settings").Element("NoSqlite");
+            Sqlite = foundNoSqlite == null;
+
             folders = doc.Descendants("Folders").Elements("Folder").Select(folder => new
             {
                 Name = (string)folder.Attribute("Name"),

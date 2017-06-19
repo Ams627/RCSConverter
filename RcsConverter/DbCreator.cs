@@ -134,7 +134,7 @@ namespace RcsConverter
                         if (dbStationLookup.TryGetValue(station, out var singleStationRCSFlowList) && rcsFlowList.Count() > 0)
                         {
                             var xmlOutputName = Path.Combine(dbFolder, toc, $"RCSFlow-{station}.xml");
-                            var outputDoc = new XDocument(new XElement("RCSFlow",
+                            var outputDoc = new XDocument(new XElement("ParkeonRCSFlow",
                                 from flow in singleStationRCSFlowList
                                 select new XElement("F",
                                    new XAttribute("r", flow.Route),
@@ -156,53 +156,57 @@ namespace RcsConverter
                                      )))));
 
                             outputDoc.Save(xmlOutputName);
-                            var databaseName = Path.Combine(dbFolder, toc, $"RCSFlow-{station}.sqlite");
-                            UpdateBatch(outfile, databaseName);
-                            SQLiteConnection.CreateFile(databaseName);
-                            var insertions = 0;
 
-                            using (var sqliteConnection = new SQLiteConnection("Data Source=" + databaseName + ";"))
-                            using (var routeCmd = new RouteCommand(sqliteConnection))
-                            using (var ticketCmd = new TicketCommand(sqliteConnection))
+                            if (settings.Sqlite)
                             {
-                                PrepareDatabase(sqliteConnection);
-                                using (var transaction = sqliteConnection.BeginTransaction())
+                                var databaseName = Path.Combine(dbFolder, toc, $"RCSFlow-{station}.sqlite");
+                                UpdateBatch(outfile, databaseName);
+                                SQLiteConnection.CreateFile(databaseName);
+                                var insertions = 0;
+
+                                using (var sqliteConnection = new SQLiteConnection("Data Source=" + databaseName + ";"))
+                                using (var routeCmd = new RouteCommand(sqliteConnection))
+                                using (var ticketCmd = new TicketCommand(sqliteConnection))
                                 {
-                                    var pid = 0;
-                                    foreach (var flow in singleStationRCSFlowList)
+                                    PrepareDatabase(sqliteConnection);
+                                    using (var transaction = sqliteConnection.BeginTransaction())
                                     {
-                                        var allTicketTypesValid = validTicketTypes == null || validTicketTypes.Count == 0;
-                                        var anyValidTicketTypes = allTicketTypesValid || validTicketTypes.Intersect(flow.TicketList.Select(x => x.TicketCode)).Any();
-
-                                        if (anyValidTicketTypes)
+                                        var pid = 0;
+                                        foreach (var flow in singleStationRCSFlowList)
                                         {
-                                            routeCmd.AddRoute(pid, flow.Route, flow.Origin, flow.Destination);
+                                            var allTicketTypesValid = validTicketTypes == null || validTicketTypes.Count == 0;
+                                            var anyValidTicketTypes = allTicketTypesValid || validTicketTypes.Intersect(flow.TicketList.Select(x => x.TicketCode)).Any();
 
-                                            foreach (var ticket in flow.TicketList)
+                                            if (anyValidTicketTypes)
                                             {
-                                                if (allTicketTypesValid || validTicketTypes.Contains(ticket.TicketCode))
+                                                routeCmd.AddRoute(pid, flow.Route, flow.Origin, flow.Destination);
+
+                                                foreach (var ticket in flow.TicketList)
                                                 {
-                                                    foreach (var ff in ticket.FFList)
+                                                    if (allTicketTypesValid || validTicketTypes.Contains(ticket.TicketCode))
                                                     {
-                                                        ticketCmd.AddTicket(pid, ticket.TicketCode, ff.StartDate, ff.EndDate, ff.SeasonIndicator, ff.QuoteDate, ff.Key);
-                                                        insertions++;
+                                                        foreach (var ff in ticket.FFList)
+                                                        {
+                                                            ticketCmd.AddTicket(pid, ticket.TicketCode, ff.StartDate, ff.EndDate, ff.SeasonIndicator, ff.QuoteDate, ff.Key);
+                                                            insertions++;
+                                                        }
                                                     }
                                                 }
+                                                pid++;
                                             }
-                                            pid++;
                                         }
+                                        transaction.Commit();
+                                        SimpleSQLOperation.Run("CREATE INDEX ORIGDEST ON RCS_FLOW_ROUTE_DB(ORIG, DEST)", sqliteConnection);
+                                        SimpleSQLOperation.Run("CREATE INDEX PID ON RCS_FLOW_TICKET_DB(pID)", sqliteConnection);
                                     }
-                                    transaction.Commit();
-                                    SimpleSQLOperation.Run("CREATE INDEX ORIGDEST ON RCS_FLOW_ROUTE_DB(ORIG, DEST)", sqliteConnection);
-                                    SimpleSQLOperation.Run("CREATE INDEX PID ON RCS_FLOW_TICKET_DB(pID)", sqliteConnection);
+                                }
+                                if (insertions == 0)
+                                {
+                                    File.Delete(databaseName);
                                 }
                             }
-                            stationsCompleted++;
-                            if (insertions == 0)
-                            {
-                                File.Delete(databaseName);
-                            }
-                        } 
+                        }
+                        stationsCompleted++;
                     } // foreach station
                 } // using batch file
             } // foreach TOC

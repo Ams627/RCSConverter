@@ -34,8 +34,11 @@ namespace RcsConverter
             var numberOfAmends = 0;
             var lineNumber = 0;
 
+            Console.WriteLine("Parsing XML");
+
             using (var reader = XmlReader.Create(filename))
             {
+                var frecordNumber = 0;
                 while (reader.Read())
                 {
                     if (reader.NodeType == XmlNodeType.Whitespace && reader.Value == "\n")
@@ -177,11 +180,12 @@ namespace RcsConverter
                                 rcsflow.TicketList.Sort((t1, t2)=>t1.TicketCode.CompareTo(t2.TicketCode));
                                 RcsFlowList.Add(rcsflow);
                                 rcsflow = new RCSFlow();
-                                if (RcsFlowList.Count() % 10000 == 9999)
-                                {
-                                    Console.WriteLine($"Filename {filename} - record number {RcsFlowList.Count() + 1:n0}");
-                                }
                             }
+                            if (frecordNumber == 0 || frecordNumber % 10000 == 9999)
+                            {
+                                Console.WriteLine($"Filename {filename} - flow record {frecordNumber + 1:n0}");
+                            }
+                            frecordNumber++;
                         }
                     }
                 }
