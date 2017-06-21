@@ -34,6 +34,7 @@ namespace RcsConverter
         /// Produce SQLite output files or not:
         /// </summary>
         public bool Sqlite { get; set; } = true;
+        public bool SqliteAll { get; set; } = false;
         public SetOptions SetOption { get; set; }
 
         public List<string> SetsToProduce { get; set; }
@@ -46,7 +47,7 @@ namespace RcsConverter
         private Dictionary<string, string> folders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         public string CurrentTocName { get; set; }
-        public HashSet<string> TicketTypes { get; set; }
+        public HashSet<string> GlobalTicketTypes { get; private set; }
         public Dictionary<string, SortedSet<string>> PerTocNlcList { get; private set; }
         public Dictionary<string, HashSet<string>> PerTocTicketTypeList { get; private set; }
         public List<string> Warnings { get; private set; } = new List<string>();
@@ -80,8 +81,12 @@ namespace RcsConverter
             // LoadOptions.SetLineInfo sets the line number info for the settings file which is used for error reporting:
             var doc = XDocument.Load(SettingsFile, LoadOptions.SetLineInfo);
 
-            var foundNoSqlite = doc.Element("Settings").Element("NoSqlite");
-            Sqlite = foundNoSqlite == null;
+            var foundSqlite = doc.Element("Settings").Element("Sqlite");
+            Sqlite = foundSqlite != null;
+            if (Sqlite)
+            {
+                SqliteAll = (foundSqlite.Attribute("OneBigDatabase")?.Value).Equals("true", StringComparison.OrdinalIgnoreCase);
+            }
 
             folders = doc.Descendants("Folders").Elements("Folder").Select(folder => new
             {
@@ -97,11 +102,11 @@ namespace RcsConverter
                 }
             }
 
-            TicketTypes = new HashSet<string>(doc.Descendants("TicketTypes").Elements("TicketType").Select(ticketType =>
-                (string)ticketType.Attribute("Name")));
+            GlobalTicketTypes = new HashSet<string>(doc.Descendants("GlobalTicketTypes").Elements("TicketType").Select(ticketType =>
+                (string)ticketType.Attribute("Code")));
 
             // check ticket codes are all 3 characters and only upper case letters or digits:
-            foreach (var ticket in TicketTypes)
+            foreach (var ticket in GlobalTicketTypes)
             {
                 if (string.IsNullOrWhiteSpace(ticket) || ticket.Length != 3 || ticket.Any(c=>!char.IsUpper(c) && !char.IsDigit(c)))
                 {
@@ -131,6 +136,14 @@ namespace RcsConverter
             {
                 var li = invalidStation as IXmlLineInfo;
                 Warnings.Add($"Warning: <Station> node does not have an NLC code at line {li.LineNumber}");
+            }
+
+            // check for ticket types without code:
+            var allTicketTypes = doc.Descendants("TicketTypes").Where(x => x.Attribute("Code") == null);
+            foreach (var ticket in allTicketTypes)
+            {
+                var li = ticket as IXmlLineInfo;
+                Warnings.Add($"Warning: <TicketType> node does not have a 'Code' attribute at line {li.LineNumber}");
             }
 
             // Check all NLC codes are valid:

@@ -155,7 +155,7 @@ namespace RcsConverter
                         // these keys from the RCS refresh list:
                         var keysToDelete =
                             processor.RcsFlowList
-                            .Where(x => x.recordType == RCSFRecordType.Delete || x.recordType == RCSFRecordType.Amend).Select(x => x.LookupKey);
+                            .Where(x => x.recordType == RCSFRecordType.Delete || x.recordType == RCSFRecordType.Amend).Select(x => x.LookupKey).OrderBy(x=>x);
 
                         foreach (var key in keysToDelete)
                         {
@@ -174,7 +174,7 @@ namespace RcsConverter
                         // add the amend and insert records from the update file to the refresh database:
                         foreach (var rcsflow in processor.RcsFlowList)
                         {
-                            if (rcsflow.recordType == RCSFRecordType.Amend || rcsflow.recordType == RCSFRecordType.Delete)
+                            if (rcsflow.recordType == RCSFRecordType.Amend || rcsflow.recordType == RCSFRecordType.Insert)
                             {
                                 rcsRefreshProcessor.RcsFlowList.Add(rcsflow);
                             }

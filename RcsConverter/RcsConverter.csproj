@@ -70,6 +70,7 @@
   <ItemGroup>
     <Compile Include="DbCreator.cs" />
     <Compile Include="FilenameProcessor.cs" />
+    <Compile Include="FlowDb.cs" />
     <Compile Include="GetRegisteredApp.cs" />
     <Compile Include="LinqExtensions.cs" />
     <Compile Include="Program.cs" />

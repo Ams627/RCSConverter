@@ -21,9 +21,9 @@ namespace RcsConverter
             var insertRoute = "INSERT INTO RCS_FLOW_ROUTE_DB(pID, orig, dest, route) VALUES(?, ?, ?, ?)";
             cmdRoute = new SQLiteCommand(insertRoute, db);
             cmdRoute.Parameters.Add(flowIdParam);
-            cmdRoute.Parameters.Add(routeParam);
             cmdRoute.Parameters.Add(origParam);
             cmdRoute.Parameters.Add(destParam);
+            cmdRoute.Parameters.Add(routeParam);
         }
 
         public void AddRoute(int flowid, string route, string orig, string dest)
