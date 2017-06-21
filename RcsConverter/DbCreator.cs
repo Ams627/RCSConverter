@@ -209,6 +209,17 @@ namespace RcsConverter
                         stationsCompleted++;
                     } // foreach station
                 } // using batch file
+
+                var makezipName = Path.Combine(dbFolder, toc, "zipper.bat");
+                using (var zipbatchfile = new StreamWriter(makezipName))
+                {
+                    zipbatchfile.WriteLine($"@echo off");
+                    zipbatchfile.WriteLine($"del xmlfiles.zip >&nul");
+                    zipbatchfile.WriteLine($"del sqlitefiles.zip >&nul");
+                    zipbatchfile.WriteLine($"pkzip -add -silent r-xmlfiles.zip *.xml");
+                    zipbatchfile.WriteLine($"pkzip -add -silent r-sqlitefiles.zip *.sqlite");
+                }
+
             } // foreach TOC
             var dbDuration = DateTime.Now - startdbTime;
             Console.WriteLine($"Database creation: duration: {dbDuration.Minutes:D2}:{dbDuration.Seconds:D2}");

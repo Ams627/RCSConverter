@@ -183,7 +183,7 @@ namespace RcsConverter
                             }
                             if (frecordNumber == 0 || frecordNumber % 10000 == 9999)
                             {
-                                Console.WriteLine($"Filename {filename} - flow record {frecordNumber + 1:n0}");
+                                Console.Write($"Filename {Path.GetFileName(filename)} - flow record {frecordNumber + 1:n0}\r");
                             }
                             frecordNumber++;
                         }
@@ -198,7 +198,7 @@ namespace RcsConverter
                     totaltickets += t.FFList.Count();
                 }
             }
-            Console.WriteLine($"total tickets are {totaltickets}");
+            Console.WriteLine($"\ntotal tickets are {totaltickets}");
             Console.WriteLine($"total number amends for {filename} is {numberOfAmends}");
             Console.WriteLine($"total number deletions for {filename} is {numberOfDeletions}");
             Console.WriteLine($"total number inserts for {filename} is {numberOfInsertions}");

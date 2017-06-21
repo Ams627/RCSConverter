@@ -91,10 +91,10 @@ namespace RcsConverter
             {
                 rcsRefreshFiles.Sort(new Comparison<string>(RCSComparer));
 
-                var updateGroups = rcsRefreshFiles
+                var refreshGroups = rcsRefreshFiles
                         .GroupBy(x => GetRCSFilenameSerialNumber(x))
                         .Select(g => new { Filename = g.FirstOrDefault(f => Path.GetExtension(f).ToLower() == ".xml") ?? g.First() });
-                var lastname = updateGroups.Last().Filename;
+                var lastname = refreshGroups.Last().Filename;
                 flowRefreshFilename = lastname;
                 //                flowRefreshFilename = rcsRefreshFiles.Last();
             }
