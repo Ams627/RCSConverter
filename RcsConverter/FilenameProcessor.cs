@@ -90,7 +90,13 @@ namespace RcsConverter
             if (rcsRefreshFiles.Count > 0)
             {
                 rcsRefreshFiles.Sort(new Comparison<string>(RCSComparer));
-                flowRefreshFilename = rcsRefreshFiles.Last();
+
+                var updateGroups = rcsRefreshFiles
+                        .GroupBy(x => GetRCSFilenameSerialNumber(x))
+                        .Select(g => new { Filename = g.FirstOrDefault(f => Path.GetExtension(f).ToLower() == ".xml") ?? g.First() });
+                var lastname = updateGroups.Last().Filename;
+                flowRefreshFilename = lastname;
+                //                flowRefreshFilename = rcsRefreshFiles.Last();
             }
 
             var refreshSerialNumber = GetRCSFilenameSerialNumber(flowRefreshFilename);
@@ -110,9 +116,9 @@ namespace RcsConverter
                 // priority if it is present.)
                 var updateGroups = rcsUpdateFiles
                                         .GroupBy(x => GetRCSFilenameSerialNumber(x))
-                                        .Select(g => new { filename = g.FirstOrDefault(f => Path.GetExtension(f).ToLower() == ".xml") ?? g.First() });
+                                        .Select(g => new { Filename = g.FirstOrDefault(f => Path.GetExtension(f).ToLower() == ".xml") ?? g.First() });
 
-                FlowUpdateFilenames = new List<string>(updateGroups.Select(x => x.filename));
+                FlowUpdateFilenames = new List<string>(updateGroups.Select(x => x.Filename));
             }
             else
             {
