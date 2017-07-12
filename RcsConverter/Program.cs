@@ -98,7 +98,7 @@ namespace RcsConverter
                 {
                     var tocspec = args.ToList().Skip(1);
                     var settingsTocSet = settings.PerTocNlcList.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    if (tocspec.Intersect(settings.PerTocNlcList.Keys).Count() != tocspec.Count())
+                    if (tocspec.Intersect(settings.PerTocNlcList.Keys, StringComparer.OrdinalIgnoreCase).Count() != tocspec.Count())
                     {
                         foreach (var toc in tocspec)
                         {
@@ -110,6 +110,7 @@ namespace RcsConverter
                         Environment.Exit(-1);
                     }
                     settings.SetsToProduce = new List<string>(tocspec);
+                    settings.SetOption = Settings.SetOptions.SpecificSets;
                 }
 
                 settings.Warnings.ForEach(x => Console.WriteLine($"{x}"));

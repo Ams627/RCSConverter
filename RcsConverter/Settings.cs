@@ -85,7 +85,7 @@ namespace RcsConverter
             Sqlite = foundSqlite != null;
             if (Sqlite)
             {
-                SqliteAll = (foundSqlite.Attribute("OneBigDatabase")?.Value).Equals("true", StringComparison.OrdinalIgnoreCase);
+                SqliteAll = ((foundSqlite.Attribute("OneBigDatabase")?.Value)?.Equals("true", StringComparison.OrdinalIgnoreCase) == true);
             }
 
             folders = doc.Descendants("Folders").Elements("Folder").Select(folder => new
