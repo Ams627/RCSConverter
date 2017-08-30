@@ -9,37 +9,54 @@ namespace RcsConverter
 {
     class DbCreator
     {
-        Dictionary<string, SortedSet<RCSFlow>> dbStationLookup = new Dictionary<string, SortedSet<RCSFlow>>();
-        readonly List<RCSFlow> rcsFlowList;
-        readonly RJISProcessor rjisprocessor;
+        /// <summary>
+        /// The application settings:
+        /// </summary>
         readonly Settings settings;
 
+        /// <summary>
+        /// master RCS flow list. This is a list of all elements in the most recent flow refresh file with all subsequent flow update files applied
+        /// </summary>
+        readonly List<RCSFlow> masterRcsFlowList;
+
+        /// <summary>
+        /// given an NLC code, get a set of RCS flows from the master RCS flow list:
+        /// </summary>
+        Dictionary<string, SortedSet<RCSFlow>> nlcToRcsFlowSet = new Dictionary<string, SortedSet<RCSFlow>>();
+
+        readonly RJISProcessor rjisprocessor;
+
+        /// <summary>
+        /// Initialise an instance of the DbCreator class.
+        /// </summary>
+        /// <param name="rcsFlowList">The master list of RCS flows (representing F-elements and all their descendants in the original XML file)</param>
+        /// <param name="rjisFlowProcessor">RJIS information - we use this to access the group statoin associations</param>
+        /// <param name="settings">The application settings</param>
         public DbCreator(List<RCSFlow> rcsFlowList, RJISProcessor rjisFlowProcessor, Settings settings)
         {
-            this.rcsFlowList = rcsFlowList;
+            this.masterRcsFlowList = rcsFlowList;
             this.rjisprocessor = rjisFlowProcessor;
             this.settings = settings;
         }
 
         void AddStationEntry(string key, RCSFlow rcsFlow)
         {
-            if (!dbStationLookup.TryGetValue(key, out var list))
+            if (!nlcToRcsFlowSet.TryGetValue(key, out var list))
             {
                 list = new SortedSet<RCSFlow>();
-                dbStationLookup.Add(key, list);
+                nlcToRcsFlowSet.Add(key, list);
             }
             list.Add(rcsFlow);
-
         }
 
         /// <summary>
-        /// Build a dictionary that maps an NLC code to a list of RCS flows.
+        /// Build a dictionary that maps an NLC code to a list of RCS flows in the master RCS flow list.
         /// We take the RCS flow list and iterate over it - for the flow we add a key to the dictionary for
         /// the origin and destination - if that key already exists we add the flow to the list:
         /// </summary>
         void BuildNLCIndex()
         {
-            foreach (var flow in rcsFlowList)
+            foreach (var flow in masterRcsFlowList)
             {
                 var origingGroupMembers = rjisprocessor.GetGroupMembers(flow.Origin);
                 var destinationGroupMembers = rjisprocessor.GetGroupMembers(flow.Destination);
@@ -68,8 +85,7 @@ namespace RcsConverter
             }
         }
 
-
-        void UpdateBatch(StreamWriter w, string filename)
+        void UpdateBatchFile(StreamWriter w, string filename)
         {
             w.WriteLine($"@echo off");
             w.WriteLine($"@echo {filename}");
@@ -79,6 +95,11 @@ namespace RcsConverter
             w.WriteLine($"HERE");
         }
 
+        /// <summary>
+        /// Open a database that already has an established SQLiteConnection. Turn journal mode off and then create
+        /// the three tables necessary. Insert the date into the RCS_FLOW_DB table.
+        /// </summary>
+        /// <param name="sqliteConnection"></param>
         void PrepareDatabase(SQLiteConnection sqliteConnection)
         {
             sqliteConnection.Open();
@@ -89,7 +110,6 @@ namespace RcsConverter
 
             SimpleSQLOperation.Run($"INSERT INTO RCS_FLOW_DB(SeqNo, Date) VALUES(0, \"{DateTime.Today.ToString("yyyy-MM-dd HH:mm:ss.F")}\")", sqliteConnection);
         }
-
 
         public void CreateIndividualDBs()
         {
@@ -135,7 +155,7 @@ namespace RcsConverter
                 
                 using (var outfile = new StreamWriter(batchname))
                 {
-                    var stationList = toc == "all" ? dbStationLookup.Keys.ToList() : settings.PerTocNlcList[toc].ToList();
+                    var stationList = toc == "all" ? nlcToRcsFlowSet.Keys.ToList() : settings.PerTocNlcList[toc].ToList();
 
                     FlowDb bigDatabase = null;
 
@@ -149,8 +169,9 @@ namespace RcsConverter
                     foreach (var station in stationList)
                     {
                         Console.Write($"{toc}: done {stationsCompleted} stations from {stationList.Count()}\r");
-                        if (dbStationLookup.TryGetValue(station, out var singleStationRCSFlowList) && singleStationRCSFlowList.Count() > 0)
+                        if (nlcToRcsFlowSet.TryGetValue(station, out var singleStationRCSFlowList) && singleStationRCSFlowList.Count() > 0)
                         {
+                            // at this point we have found some RCS flows for this station, so generate a station XML file:
                             var xmlOutputName = Path.Combine(dbFolder, toc, $"RCSFlow-{station}.xml");
                             var outputDoc = new XDocument(new XElement("ParkeonRCSFlow",
                                 from flow in singleStationRCSFlowList
@@ -175,10 +196,11 @@ namespace RcsConverter
 
                             outputDoc.Save(xmlOutputName);
 
+                            // if settings say we should produce an Sqlite file then do it!:
                             if (settings.Sqlite)
                             {
                                 var databaseName = Path.Combine(dbFolder, toc, $"RCSFlow-{station}.sqlite");
-                                UpdateBatch(outfile, databaseName);
+                                UpdateBatchFile(outfile, databaseName);
                                 var insertions = 0;
 
                                 using (var flowDb = new FlowDb(databaseName))
