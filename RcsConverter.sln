@@ -1,11 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26430.6
+VisualStudioVersion = 15.0.26730.12
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RcsConverter", "RcsConverter\RcsConverter.csproj", "{96B3C56D-AB1A-4EB8-811F-BB9AEF8CB739}"
 EndProject
 Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "Setup", "Setup\Setup.wixproj", "{9A0DA8E6-0CEE-4F1F-893F-336CC76D4044}"
+	ProjectSection(ProjectDependencies) = postProject
+		{96B3C56D-AB1A-4EB8-811F-BB9AEF8CB739} = {96B3C56D-AB1A-4EB8-811F-BB9AEF8CB739}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,6 +27,7 @@ Global
 		{96B3C56D-AB1A-4EB8-811F-BB9AEF8CB739}.Release|x86.ActiveCfg = Release|Any CPU
 		{96B3C56D-AB1A-4EB8-811F-BB9AEF8CB739}.Release|x86.Build.0 = Release|Any CPU
 		{9A0DA8E6-0CEE-4F1F-893F-336CC76D4044}.Debug|Any CPU.ActiveCfg = Debug|x86
+		{9A0DA8E6-0CEE-4F1F-893F-336CC76D4044}.Debug|Any CPU.Build.0 = Debug|x86
 		{9A0DA8E6-0CEE-4F1F-893F-336CC76D4044}.Debug|x86.ActiveCfg = Debug|x86
 		{9A0DA8E6-0CEE-4F1F-893F-336CC76D4044}.Debug|x86.Build.0 = Debug|x86
 		{9A0DA8E6-0CEE-4F1F-893F-336CC76D4044}.Release|Any CPU.ActiveCfg = Release|x86
@@ -32,5 +36,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {7B5ED993-90E7-48C5-8153-713C87F6563A}
 	EndGlobalSection
 EndGlobal

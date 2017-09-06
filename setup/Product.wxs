@@ -4,27 +4,45 @@
 		<Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
 
 		<MajorUpgrade DowngradeErrorMessage="A newer version of RCSConverter is already installed." />
-		<!--<MediaTemplate />-->
-    <Media Cabinet="rcs1.cab" EmbedCab="yes" Id="409"/>
-		<Feature Id="ProductFeature" Title="Setup" Level="1">
-			<ComponentGroupRef Id="ProductComponents" />
+		<MediaTemplate />
+		<Feature Id="ProductFeature" Title="RCSConverter Setup" Description="Complete Package" Display="expand" Level="1" ConfigurableDirectory="INSTALLFOLDER">
+      <Feature Id='MainProgram' Title='RCSImport' Description='RCSImport executable.' Level='1'>
+        <ComponentGroupRef Id="ProductComponents" />
+      </Feature>
 		</Feature>
-	</Product>
+
+    <UIRef Id="WixUI_Mondo" />
+    <!--<UIRef Id="WixUI_Advanced" />-->
+    <UIRef Id="WixUI_ErrorProgressText" />
+
+  </Product>
 
 	<Fragment>
-		<Directory Id="TARGETDIR" Name="SourceDir">
-			<Directory Id="ProgramFilesFolder">
-				<Directory Id="INSTALLFOLDER" Name="Setup" />
-			</Directory>
-		</Directory>
-	</Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="Parkeon" Name="Parkeon">
+          <Directory Id="INSTALLFOLDER" Name="RCSConverter" />
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ParkeonMenu" Name="Parkeon Utilities">
+          <Directory Id="RCSImportFolder" Name="RCSConverter" />
+        </Directory>
+      </Directory>
+      <Directory Id="DesktopFolder" />
+    </Directory>
+  </Fragment>
 
 	<Fragment>
 		<ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
-			<!-- TODO: Remove the comments around this Component element and the ComponentRef below in order to add resources to this installer. -->
-			<!-- <Component Id="ProductComponent"> -->
-				<!-- TODO: Insert files, registry keys, and other resources here. -->
-			<!-- </Component> -->
+			 <Component Id="ProductComponent">
+         <File Source="$(var.RcsConverter.TargetPath)" KeyPath="yes" />
+         <RemoveFolder Id="RemoveParkeonMenu" Directory="ParkeonMenu" On="uninstall"/>
+         <RemoveFolder Id="RemoveRCSConverterFolder" Directory="RCSConverterFolder" On="uninstall"/>
+         <Shortcut Id="desktopRcsImport" Directory="DesktopFolder" Name="RCSImport" WorkingDirectory='INSTALLDIR' IconIndex="0" Advertise="yes" />
+         <Shortcut Id="startmenuRcsImport" Directory="RCSImportFolder" Name="RCSImport" WorkingDirectory='INSTALLDIR' IconIndex="0" Advertise="yes" />
+       </Component>
+      
 		</ComponentGroup>
 	</Fragment>
 </Wix>
